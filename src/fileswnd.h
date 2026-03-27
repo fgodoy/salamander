@@ -1269,6 +1269,11 @@ public:
     CFilesWindow* GetTreeViewSourcePanel();
     int GetTreeViewWidth(int clientWidth);
     void SetTreeViewWidth(int width);
+    COLORREF GetTreeViewTextColor();
+    COLORREF GetTreeViewBkColor();
+    COLORREF GetTreeViewSelectionTextColor();
+    COLORREF GetTreeViewSelectionBkColor();
+    void UpdateTreeViewColors();
     void CreateTreeView();
     void DestroyTreeView();
     void UpdateTreeView(BOOL active);

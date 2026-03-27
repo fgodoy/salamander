@@ -533,6 +533,7 @@ void CFilesWindow::RefreshTreeView()
     }
 
     EnableWindow(HTreeView, TRUE);
+    UpdateTreeViewColors();
 
     const char* sourcePath = sourcePanel->GetPath();
     char root[MAX_PATH];

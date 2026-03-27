@@ -37,6 +37,17 @@ enum
 static const char* TREEVIEW_SPLIT_SUBCLASSPROC = "SAL_TREEVIEW_SPLIT_SUBCLASSPROC";
 static const char* TREEVIEW_SPLIT_OWNER = "SAL_TREEVIEW_SPLIT_OWNER";
 
+static COLORREF GetPanelBrushColor(HBRUSH hBrush, COLORREF fallback)
+{
+    if (hBrush != NULL)
+    {
+        LOGBRUSH brushInfo;
+        if (GetObject(hBrush, sizeof(brushInfo), &brushInfo) == sizeof(brushInfo))
+            return brushInfo.lbColor;
+    }
+    return fallback;
+}
+
 static int ClampTreeViewWidth(int clientWidth, int requestedWidth)
 {
     int maxWidth = clientWidth - TREEVIEW_MIN_LIST_WIDTH - TREEVIEW_SPLITTER_WIDTH;
@@ -151,6 +162,40 @@ CFilesWindow* CFilesWindow::GetTreeViewSourcePanel()
 int CFilesWindow::GetTreeViewWidth(int clientWidth)
 {
     return ClampTreeViewWidth(clientWidth, Configuration.TreeViewWidth);
+}
+
+COLORREF CFilesWindow::GetTreeViewTextColor()
+{
+    return GetCOLORREF(CurrentColors[ITEM_FG_NORMAL]);
+}
+
+COLORREF CFilesWindow::GetTreeViewBkColor()
+{
+    return GetPanelBrushColor(HNormalBkBrush, GetCOLORREF(CurrentColors[ITEM_BK_NORMAL]));
+}
+
+COLORREF CFilesWindow::GetTreeViewSelectionTextColor()
+{
+    BOOL useFocusedSelection = MainWindow != NULL && MainWindow->CaptionIsActive;
+    return GetCOLORREF(CurrentColors[useFocusedSelection ? ITEM_FG_FOCSEL : ITEM_FG_SELECTED]);
+}
+
+COLORREF CFilesWindow::GetTreeViewSelectionBkColor()
+{
+    BOOL useFocusedSelection = MainWindow != NULL && MainWindow->CaptionIsActive;
+    return GetPanelBrushColor(useFocusedSelection ? HFocSelBkBrush : HSelectedBkBrush,
+                              GetCOLORREF(CurrentColors[useFocusedSelection ? ITEM_BK_FOCSEL : ITEM_BK_SELECTED]));
+}
+
+void CFilesWindow::UpdateTreeViewColors()
+{
+    if (HTreeView == NULL)
+        return;
+
+    TreeView_SetTextColor(HTreeView, GetTreeViewTextColor());
+    TreeView_SetBkColor(HTreeView, GetTreeViewBkColor());
+    TreeView_SetLineColor(HTreeView, GetTreeViewTextColor());
+    InvalidateRect(HTreeView, NULL, TRUE);
 }
 
 void CFilesWindow::SetTreeViewWidth(int width)
@@ -1539,7 +1584,7 @@ void CFilesWindow::CreateTreeView()
             return;
         }
         if (appIsThemed)
-            SetWindowTheme(HTreeView, L"explorer", NULL);
+            SetWindowTheme(HTreeView, (L" "), (L" "));
 
         SHFILEINFO sfi;
         memset(&sfi, 0, sizeof(sfi));
@@ -1547,6 +1592,7 @@ void CFilesWindow::CreateTreeView()
                                                           SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
         if (hImageList != NULL)
             TreeView_SetImageList(HTreeView, hImageList, TVSIL_NORMAL);
+        UpdateTreeViewColors();
     }
 
     if (HTreeSplit == NULL)
@@ -1608,6 +1654,7 @@ void CFilesWindow::UpdateTreeView(BOOL active)
     if (HTreeView != NULL)
     {
         ShowWindow(HTreeView, TreeViewActive ? SW_SHOW : SW_HIDE);
+        UpdateTreeViewColors();
         if (TreeViewActive)
             RefreshTreeView();
     }

@@ -5504,6 +5504,8 @@ MENU_TEMPLATE_ITEM AddToSystemMenu[] =
         CFilesWindow* panel = GetActivePanel();
         if (panel != NULL && panel->DirectoryLine != NULL)
             panel->DirectoryLine->InvalidateAndUpdate(!CaptionIsActive);
+        if (LeftPanel != NULL)
+            LeftPanel->UpdateTreeViewColors();
 
         if (!CaptionIsActive)
         {

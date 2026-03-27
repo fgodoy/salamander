@@ -206,6 +206,33 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             switch (lphdr->code)
             {
+            case NM_CUSTOMDRAW:
+            {
+                LPNMTVCUSTOMDRAW pnmcd = (LPNMTVCUSTOMDRAW)lParam;
+                if (pnmcd->nmcd.dwDrawStage == CDDS_PREPAINT)
+                    return CDRF_NOTIFYITEMDRAW;
+
+                if (pnmcd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT)
+                {
+                    pnmcd->clrText = GetTreeViewTextColor();
+                    pnmcd->clrTextBk = GetTreeViewBkColor();
+                    if ((pnmcd->nmcd.uItemState & CDIS_SELECTED) != 0)
+                    {
+                        HBRUSH hBrush = HANDLES(CreateSolidBrush(GetTreeViewSelectionBkColor()));
+                        if (hBrush != NULL)
+                        {
+                            FillRect(pnmcd->nmcd.hdc, &pnmcd->nmcd.rc, hBrush);
+                            HANDLES(DeleteObject(hBrush));
+                        }
+                        pnmcd->clrText = GetTreeViewSelectionTextColor();
+                        pnmcd->clrTextBk = GetTreeViewSelectionBkColor();
+                        pnmcd->nmcd.uItemState &= ~(CDIS_SELECTED | CDIS_FOCUS);
+                    }
+                    return CDRF_NEWFONT;
+                }
+                return CDRF_DODEFAULT;
+            }
+
             case TVN_ITEMEXPANDING:
             {
                 LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lParam;

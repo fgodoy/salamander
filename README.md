@@ -49,6 +49,12 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 - 2026-03-27: TreeView rich file-icon design completed with shell-image-list reuse, mixed dir/file node model, and file-focus integration via ```WM_USER_FOCUSFILE```
 - 2026-03-27: TreeView rich file-icon tasks prepared with an implementation order centered on typed node payloads, shell icons, mixed population, and file-focus behavior
 - 2026-03-27: TreeView rich file-icon implementation completed with typed node payloads, shell small icons, mixed folder/file population, file-focus routing, and successful ```Debug|Win32``` build validation
+- 2026-03-27: TreeView color sync implemented so background, text, and selection colors follow the user-defined panel color scheme, with successful ```Debug|Win32``` build validation
+- 2026-03-27: TreeView selection color mapping was corrected so unfocused selection uses the panel `SELECTED` colors and focused selection uses `FOCSEL`, with successful ```Debug|Win32``` build validation
+- 2026-03-27: TreeView selection rendering was corrected again so it follows the main-window active state rather than the tree HWND focus, matching the active panel semantics, with successful ```Debug|Win32``` build validation
+- 2026-03-27: TreeView visual styles were disabled for the panel-hosted tree so Windows theming stops overriding the custom panel color mapping, with successful ```Debug|Win32``` build validation
+- 2026-03-27: TreeView selection background was aligned to the same effective panel brushes used in the file panels, preserving the configured highlight color such as ```8080ff```, with successful ```Debug|Win32``` build validation
+- 2026-03-27: TreeView selected-item default painting was neutralized so the control stops repainting the classic blue selection over the custom panel highlight, with successful ```Debug|Win32``` build validation
 
 ### Contributing
 

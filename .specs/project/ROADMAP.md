@@ -16,6 +16,16 @@
   - população mista com diretórios primeiro e arquivos depois
   - seleção de arquivo integrada ao fluxo de foco do painel via `WM_USER_FOCUSFILE`
   - validação por build `Debug|Win32`
+- Panel TreeView Color Sync
+  - fundo do tree alinhado com `ITEM_BK_NORMAL`
+  - texto do tree alinhado com `ITEM_FG_NORMAL`
+  - seleção do tree alinhada com as cores focadas do painel
+  - seleção sem foco corrigida para usar as cores `SELECTED` do painel
+  - seleção do tree corrigida para seguir o estado ativo da janela principal (`FOCSEL` quando a app está ativa)
+  - visual style `explorer` removido do tree para não sobrescrever as cores customizadas
+  - fundo de seleção do tree alinhado aos mesmos brushes efetivos usados pelo painel para preservar o highlight configurado, incluindo `8080ff`
+  - desenho default de item selecionado do `TreeView` neutralizado para não reaplicar o azul clássico do controle sobre o highlight do painel
+  - validação por build `Debug|Win32`
 
 ## In Progress
 
