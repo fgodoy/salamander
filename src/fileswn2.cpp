@@ -1540,6 +1540,13 @@ void CFilesWindow::CreateTreeView()
         }
         if (appIsThemed)
             SetWindowTheme(HTreeView, L"explorer", NULL);
+
+        SHFILEINFO sfi;
+        memset(&sfi, 0, sizeof(sfi));
+        HIMAGELIST hImageList = (HIMAGELIST)SHGetFileInfo("C:\\", FILE_ATTRIBUTE_DIRECTORY, &sfi, sizeof(sfi),
+                                                          SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
+        if (hImageList != NULL)
+            TreeView_SetImageList(HTreeView, hImageList, TVSIL_NORMAL);
     }
 
     if (HTreeSplit == NULL)
@@ -1575,6 +1582,7 @@ void CFilesWindow::DestroyTreeView()
     }
     if (HTreeView != NULL)
     {
+        TreeView_SetImageList(HTreeView, NULL, TVSIL_NORMAL);
         DestroyWindow(HTreeView);
         HTreeView = NULL;
     }

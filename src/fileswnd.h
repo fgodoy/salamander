@@ -702,6 +702,22 @@ typedef PVOID HDEVNOTIFY;
 
 enum CViewModeEnum;
 
+enum CTreeViewNodeTypeEnum
+{
+    tvntDirectory,
+    tvntFile
+};
+
+struct CTreeViewNodeData
+{
+    CTreeViewNodeTypeEnum Type;
+    char* FullPath;
+    char* FocusPath;
+    char* FocusName;
+    int ImageIndex;
+    int SelectedImageIndex;
+};
+
 class CFilesWindow : public CFilesWindowAncestor
 {
 public:

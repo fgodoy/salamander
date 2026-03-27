@@ -10,14 +10,18 @@
   - conteúdo sincronizado com o painel ativo
   - redimensionamento lateral com persistência de largura
   - validação por build `Debug|Win32`
+- Panel TreeView Rich File Icons
+  - payload tipado para nós de pasta e arquivo
+  - image list small-icon da shell ligado ao tree
+  - população mista com diretórios primeiro e arquivos depois
+  - seleção de arquivo integrada ao fluxo de foco do painel via `WM_USER_FOCUSFILE`
+  - validação por build `Debug|Win32`
 
 ## In Progress
 
 - Manual smoke and follow-up polish for recent UI changes
 - UI modernization discovery and path selection
-- TreeView rich file-icon feature specification
-- TreeView rich file-icon feature design
-- TreeView rich file-icon feature tasks
+- Manual smoke for TreeView rich file icons
 
 ## Backlog
 

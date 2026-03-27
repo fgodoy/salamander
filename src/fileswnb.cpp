@@ -54,19 +54,33 @@ BOOL IsCustomEventGUID(LPARAM lParam, REFGUID guidEvent)
     return ret;
 }
 
-static const char* GetTreeViewNotifyPath(HWND hTreeView, HTREEITEM hItem)
+static BOOL GetTreeViewNotifyItemData(HWND hTreeView, HTREEITEM hItem, CTreeViewNodeData* itemData)
 {
     if (hTreeView == NULL || hItem == NULL)
-        return NULL;
+        return FALSE;
 
     TVITEM item;
     memset(&item, 0, sizeof(item));
     item.mask = TVIF_PARAM;
     item.hItem = hItem;
     if (!TreeView_GetItem(hTreeView, &item))
-        return NULL;
+        return FALSE;
+    if (item.lParam == 0)
+        return FALSE;
 
-    return (const char*)item.lParam;
+    *itemData = *(CTreeViewNodeData*)item.lParam;
+    return TRUE;
+}
+
+static void FreeTreeViewNodeData(CTreeViewNodeData* itemData)
+{
+    if (itemData == NULL)
+        return;
+
+    free(itemData->FullPath);
+    free(itemData->FocusPath);
+    free(itemData->FocusName);
+    free(itemData);
 }
 
 enum
@@ -183,7 +197,7 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
             {
                 LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lParam;
                 if (pnmtv->itemOld.lParam != 0)
-                    free((void*)pnmtv->itemOld.lParam);
+                    FreeTreeViewNodeData((CTreeViewNodeData*)pnmtv->itemOld.lParam);
                 return 0;
             }
 
@@ -203,13 +217,34 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
             case TVN_SELCHANGED:
             {
                 LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lParam;
-                const char* treePath = GetTreeViewNotifyPath(HTreeView, pnmtv->itemNew.hItem);
+                CTreeViewNodeData itemData;
                 CFilesWindow* sourcePanel = GetTreeViewSourcePanel();
-                if (TreeViewActive && sourcePanel != NULL && sourcePanel->Is(ptDisk) &&
-                    treePath != NULL && treePath[0] != 0 &&
-                    !IsTheSamePath(treePath, sourcePanel->GetPath()))
+                if (!TreeViewActive || sourcePanel == NULL || !sourcePanel->Is(ptDisk) ||
+                    !GetTreeViewNotifyItemData(HTreeView, pnmtv->itemNew.hItem, &itemData))
+                    return 0;
+
+                if (itemData.Type == tvntDirectory)
                 {
-                    sourcePanel->ChangePathToDisk(sourcePanel->HWindow, treePath);
+                    if (itemData.FullPath != NULL && itemData.FullPath[0] != 0 &&
+                        !IsTheSamePath(itemData.FullPath, sourcePanel->GetPath()))
+                    {
+                        char treePath[MAX_PATH];
+                        lstrcpyn(treePath, itemData.FullPath, MAX_PATH);
+                        sourcePanel->ChangePathToDisk(sourcePanel->HWindow, treePath);
+                    }
+                }
+                else
+                {
+                    if (itemData.FocusPath != NULL && itemData.FocusPath[0] != 0 &&
+                        itemData.FocusName != NULL && itemData.FocusName[0] != 0)
+                    {
+                        char focusPath[MAX_PATH + 200];
+                        char focusName[MAX_PATH + 200];
+                        lstrcpyn(focusPath, itemData.FocusPath, MAX_PATH + 200);
+                        lstrcpyn(focusName, itemData.FocusName, MAX_PATH + 200);
+                        MainWindow->PostFocusNameInPanel(sourcePanel == MainWindow->LeftPanel ? PANEL_LEFT : PANEL_RIGHT,
+                                                         focusPath, focusName);
+                    }
                 }
                 return 0;
             }

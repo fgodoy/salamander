@@ -2,7 +2,7 @@
 
 **Design**: `.specs/features/panel-treeview-file-icons/design.md`
 **Spec**: `.specs/features/panel-treeview-file-icons/spec.md`
-**Status**: Draft
+**Status**: Implemented, build validated, manual smoke pending
 
 ---
 
@@ -59,9 +59,9 @@ T6 -> T7
 
 **Done when**:
 
-- [ ] Tree nodes can distinguish directory vs file type.
-- [ ] Payload stores enough data for icon and selection behavior.
-- [ ] Tree cleanup releases payload memory without leaks or stale pointers.
+- [x] Tree nodes can distinguish directory vs file type.
+- [x] Payload stores enough data for icon and selection behavior.
+- [x] Tree cleanup releases payload memory without leaks or stale pointers.
 
 **Verify**:
 
@@ -84,9 +84,9 @@ T6 -> T7
 
 **Done when**:
 
-- [ ] The tree owns or attaches to a small-icon image list correctly.
-- [ ] Directory nodes can resolve closed/open folder icon indexes.
-- [ ] File nodes can resolve type-appropriate icon indexes.
+- [x] The tree owns or attaches to a small-icon image list correctly.
+- [x] Directory nodes can resolve closed/open folder icon indexes.
+- [x] File nodes can resolve type-appropriate icon indexes.
 
 **Verify**:
 
@@ -109,10 +109,10 @@ T6 -> T7
 
 **Done when**:
 
-- [ ] Expanded nodes can contain both directories and files.
-- [ ] `.` and `..` remain excluded.
-- [ ] Directories appear before files in stable alphabetical order.
-- [ ] File nodes are inserted as leaves.
+- [x] Expanded nodes can contain both directories and files.
+- [x] `.` and `..` remain excluded.
+- [x] Directories appear before files in stable alphabetical order.
+- [x] File nodes are inserted as leaves.
 
 **Verify**:
 
@@ -135,9 +135,9 @@ T6 -> T7
 
 **Done when**:
 
-- [ ] Non-disk modes remain disabled or empty.
-- [ ] Hidden/system baseline is handled consistently with the active panel configuration.
-- [ ] The tree does not expose misleading nodes that the panel would clearly suppress under baseline rules.
+- [x] Non-disk modes remain disabled or empty.
+- [x] Hidden/system baseline is handled consistently with the active panel configuration.
+- [x] The tree does not expose misleading nodes that the panel would clearly suppress under baseline rules.
 
 **Verify**:
 
@@ -160,9 +160,9 @@ T6 -> T7
 
 **Done when**:
 
-- [ ] Selecting a directory node still calls `ChangePathToDisk(...)`.
-- [ ] Selecting a file node sends the active panel to the correct parent path and focuses the file.
-- [ ] File selection does not accidentally trigger file open/execute behavior.
+- [x] Selecting a directory node still calls `ChangePathToDisk(...)`.
+- [x] Selecting a file node sends the active panel to the correct parent path and focuses the file.
+- [x] File selection does not accidentally trigger file open/execute behavior.
 
 **Verify**:
 
@@ -185,9 +185,9 @@ T6 -> T7
 
 **Done when**:
 
-- [ ] Only directory-like nodes appear expandable.
-- [ ] Folder open/closed icon state behaves correctly when available.
-- [ ] Tree refresh does not leave stale file nodes or stale payload state behind.
+- [x] Only directory-like nodes appear expandable.
+- [x] Folder open/closed icon state behaves correctly when available.
+- [x] Tree refresh does not leave stale file nodes or stale payload state behind.
 
 **Verify**:
 
@@ -210,7 +210,7 @@ T6 -> T7
 
 **Done when**:
 
-- [ ] The main solution builds in at least one supported local configuration.
+- [x] The main solution builds in at least one supported local configuration.
 - [ ] Manual smoke verifies dir/file icons, file selection, and disk-only gating.
 - [ ] No obvious regressions appear in tree toggle, panel switch, or tree refresh flows.
 
