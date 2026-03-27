@@ -15,6 +15,8 @@
 
 - Manual smoke and follow-up polish for recent UI changes
 - UI modernization discovery and path selection
+- TreeView rich file-icon feature specification
+- TreeView rich file-icon feature design
 
 ## Backlog
 
