@@ -753,12 +753,15 @@ public:
     CStatusWindow *StatusLine,
         *DirectoryLine;
     HWND HTreeView;
+    HWND HTreeSplit;
 
     BOOL StatusLineVisible;
     BOOL DirectoryLineVisible;
     BOOL HeaderLineVisible;
     BOOL TreeViewActive;
     BOOL TreeViewDisableNotify;
+    BOOL TreeViewSplitDragging;
+    int TreeViewSplitOffset;
 
     CMainWindow* Parent;
 
@@ -1246,6 +1249,10 @@ public:
     void ToggleStatusLine();
     void ToggleDirectoryLine();
     void ToggleHeaderLine();
+    BOOL IsTreeViewHost();
+    CFilesWindow* GetTreeViewSourcePanel();
+    int GetTreeViewWidth(int clientWidth);
+    void SetTreeViewWidth(int width);
     void CreateTreeView();
     void DestroyTreeView();
     void UpdateTreeView(BOOL active);

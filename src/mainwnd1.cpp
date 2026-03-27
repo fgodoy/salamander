@@ -772,12 +772,8 @@ BOOL CMainWindow::ToggleTreeView()
 
     Configuration.TreeViewVisible = !Configuration.TreeViewVisible;
 
-    CFilesWindow* activePanel = GetActivePanel();
-    if (activePanel == NULL)
-        activePanel = LeftPanel;
-
-    LeftPanel->UpdateTreeView(activePanel == LeftPanel);
-    RightPanel->UpdateTreeView(activePanel == RightPanel);
+    LeftPanel->UpdateTreeView(TRUE);
+    RightPanel->UpdateTreeView(FALSE);
 
     return TRUE;
 }

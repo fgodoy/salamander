@@ -325,6 +325,7 @@
 #define IDC_EDITLINE        956
 #define IDC_DIRTEXT         957
 #define IDC_TREEVIEW        958
+#define IDC_TREESPLIT       959
 
 // icons
 #define IDI_SALAMANDER       960

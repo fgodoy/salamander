@@ -1188,8 +1188,8 @@ void CMainWindow::ChangePanel(BOOL force)
     if (change)
     {
         SetActivePanel(p2);
-        LeftPanel->UpdateTreeView(GetActivePanel() == LeftPanel);
-        RightPanel->UpdateTreeView(GetActivePanel() == RightPanel);
+        LeftPanel->UpdateTreeView(TRUE);
+        RightPanel->UpdateTreeView(FALSE);
 
         // ensure the active panel header is redrawn
         if (p1->DirectoryLine != NULL)
@@ -1243,8 +1243,8 @@ void CMainWindow::FocusPanel(CFilesWindow* focus, BOOL testIfMainWndActive)
 
     CFilesWindow* old = GetActivePanel();
     SetActivePanel(focus);
-    LeftPanel->UpdateTreeView(GetActivePanel() == LeftPanel);
-    RightPanel->UpdateTreeView(GetActivePanel() == RightPanel);
+    LeftPanel->UpdateTreeView(TRUE);
+    RightPanel->UpdateTreeView(FALSE);
 
     UpdateDriveBars(); // press the correct drive in the drive bar
 

@@ -138,3 +138,14 @@ Plugins seguem um padrão bastante consistente:
 - dependências terceiras em `src/common/dep/` e alguns plugins não seguem plenamente o estilo local
 - há coexistência de C e C++
 - plugins específicos têm subárvores próprias com convenções externas, como `7zip`, `winscp`, `cmark-gfm`, `libexif`
+
+## Workflow Directives
+
+Estas diretivas passam a valer para o fluxo de trabalho e manutenção dos artefatos em `.specs/` e `README.md`.
+
+- sempre enviar uma sugestão de commit ao concluir uma tarefa
+- sempre incluir nos `design.md` de features um diagrama de comunicação entre componentes e um diagrama de sequência do fluxo principal
+- os diagramas em `design.md` devem usar cores com contraste suficiente para leitura em temas escuros
+- sempre atualizar `.specs/project/ROADMAP.md` com o que foi finalizado
+- sempre atualizar `README.md` com scripts relevantes criados ou mantidos no fluxo do projeto
+- sempre atualizar `README.md` com o progresso registrado na timeline do projeto

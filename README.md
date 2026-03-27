@@ -28,9 +28,22 @@ We would like to thank [Fine company](https://www.finesoftware.eu/) for making t
 
 ### Building
 
-Solution ```\src\vcxproj\salamand.sln``` may be built from within Visual Studio or from the command-line using ```\src\vcxproj\rebuild.cmd```.
+Solution ```\src\vcxproj\salamand.sln``` may be built from within Visual Studio or from the command-line using ```\src\vcxproj\rebuild.cmd``` or ```\src\vcxproj\build.cmd```.
 
 Use ```\src\vcxproj\!populate_build_dir.cmd``` to populate build directory with files required to run Open Salamander.
+
+### Project Scripts
+
+- ```\src\vcxproj\build.cmd``` builds a selected solution configuration from the command line and resolves modern Visual Studio / MSBuild locations automatically
+- ```\src\vcxproj\rebuild.cmd``` rebuilds the selected solution configuration from the command line
+- ```\src\vcxproj\!populate_build_dir.cmd``` copies runtime files required to launch Open Salamander from the build output
+- ```\normalize.ps1``` documents the repository normalization and formatting workflow
+
+Keep this list updated whenever project-facing scripts are added or existing script behavior changes.
+
+### Project Timeline
+
+- 2026-03-27: Panel TreeView feature completed with menu/config toggle, fixed left-side host, active-panel synchronization, persisted width, and successful ```Debug|Win32``` solution build validation
 
 ### Contributing
 

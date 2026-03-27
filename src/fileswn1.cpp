@@ -75,6 +75,13 @@ static HTREEITEM InsertTreeViewItem(HWND hTreeView, HTREEITEM hParent, const cha
     return hItem;
 }
 
+enum
+{
+    TREEVIEW_MIN_WIDTH = 120,
+    TREEVIEW_MIN_LIST_WIDTH = 50,
+    TREEVIEW_SPLITTER_WIDTH = 4
+};
+
 //
 // ****************************************************************************
 // CFilesWindowAncestor
@@ -352,14 +359,17 @@ void CFilesWindowAncestor::SetPath(const char* path)
         ((CFilesWindow*)this)->SetAutomaticRefresh(TRUE, TRUE);
     }
 
-    ((CFilesWindow*)this)->RefreshTreeView();
+    if (MainWindow != NULL && MainWindow->LeftPanel != NULL)
+        MainWindow->LeftPanel->RefreshTreeView();
+    else
+        ((CFilesWindow*)this)->RefreshTreeView();
 }
 
 void CFilesWindow::RefreshTreeView()
 {
     CALL_STACK_MESSAGE1("CFilesWindow::RefreshTreeView()");
 
-    if (HTreeView == NULL)
+    if (!IsTreeViewHost() || HTreeView == NULL)
         return;
 
     if (!TreeViewActive)
@@ -371,7 +381,8 @@ void CFilesWindow::RefreshTreeView()
     TreeViewDisableNotify = TRUE;
     TreeView_DeleteAllItems(HTreeView);
 
-    if (!Is(ptDisk))
+    CFilesWindow* sourcePanel = GetTreeViewSourcePanel();
+    if (sourcePanel == NULL || !sourcePanel->Is(ptDisk))
     {
         EnableWindow(HTreeView, FALSE);
         TreeViewDisableNotify = FALSE;
@@ -380,8 +391,9 @@ void CFilesWindow::RefreshTreeView()
 
     EnableWindow(HTreeView, TRUE);
 
+    const char* sourcePath = sourcePanel->GetPath();
     char root[MAX_PATH];
-    GetRootPath(root, GetPath());
+    GetRootPath(root, sourcePath);
     if (root[0] == 0)
     {
         TreeViewDisableNotify = FALSE;
@@ -398,12 +410,12 @@ void CFilesWindow::RefreshTreeView()
     PopulateTreeViewItem(hCurrent);
     TreeView_Expand(HTreeView, hCurrent, TVE_EXPAND);
 
-    if (!IsTheSamePath(root, GetPath()))
+    if (!IsTheSamePath(root, sourcePath))
     {
         char currentPath[MAX_PATH];
         lstrcpyn(currentPath, root, MAX_PATH);
 
-        const char* segment = GetPath() + strlen(root);
+        const char* segment = sourcePath + strlen(root);
         while (*segment == '\\' || *segment == '/')
             segment++;
 
@@ -454,7 +466,8 @@ BOOL CFilesWindow::PopulateTreeViewItem(HTREEITEM hItem)
 {
     CALL_STACK_MESSAGE1("CFilesWindow::PopulateTreeViewItem()");
 
-    if (HTreeView == NULL || hItem == NULL || !Is(ptDisk))
+    CFilesWindow* sourcePanel = GetTreeViewSourcePanel();
+    if (HTreeView == NULL || hItem == NULL || sourcePanel == NULL || !sourcePanel->Is(ptDisk))
         return FALSE;
 
     const char* itemPath = GetTreeViewItemPath(HTreeView, hItem);
@@ -1577,11 +1590,14 @@ CFilesWindow::CFilesWindow(CMainWindow* parent)
     StatusLine = NULL;
     DirectoryLine = NULL;
     HTreeView = NULL;
+    HTreeSplit = NULL;
     StatusLineVisible = TRUE;
     DirectoryLineVisible = TRUE;
     HeaderLineVisible = TRUE;
     TreeViewActive = FALSE;
     TreeViewDisableNotify = FALSE;
+    TreeViewSplitDragging = FALSE;
+    TreeViewSplitOffset = 0;
 
     SortType = stName;
     ReverseSort = FALSE;

@@ -69,6 +69,11 @@ static const char* GetTreeViewNotifyPath(HWND hTreeView, HTREEITEM hItem)
     return (const char*)item.lParam;
 }
 
+enum
+{
+    TREEVIEW_SPLITTER_WIDTH = 4
+};
+
 //****************************************************************************
 //
 // WindowProc
@@ -114,14 +119,10 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             if (HTreeView != NULL && TreeViewActive)
             {
-                treeWidth = Configuration.TreeViewWidth;
-                if (treeWidth < 0)
-                    treeWidth = 0;
-                if (treeWidth > width - 50)
-                    treeWidth = max(0, width - 50);
-                listX = treeWidth;
-                listWidth = width - treeWidth;
-                windowsCount++;
+                treeWidth = GetTreeViewWidth(width);
+                listX = treeWidth + TREEVIEW_SPLITTER_WIDTH;
+                listWidth = width - listX;
+                windowsCount += HTreeSplit != NULL ? 2 : 1;
             }
 
             HDWP hdwp = HANDLES(BeginDeferWindowPos(windowsCount));
@@ -135,6 +136,11 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
                 if (HTreeView != NULL && TreeViewActive)
                     hdwp = HANDLES(DeferWindowPos(hdwp, HTreeView, NULL,
                                                   0, dlHeight, treeWidth, height - stHeight - dlHeight,
+                                                  SWP_NOACTIVATE | SWP_NOZORDER));
+
+                if (HTreeSplit != NULL && TreeViewActive)
+                    hdwp = HANDLES(DeferWindowPos(hdwp, HTreeSplit, NULL,
+                                                  treeWidth, dlHeight, TREEVIEW_SPLITTER_WIDTH, height - stHeight - dlHeight,
                                                   SWP_NOACTIVATE | SWP_NOZORDER));
 
                 hdwp = HANDLES(DeferWindowPos(hdwp, ListBox->HWindow, NULL,
@@ -198,10 +204,12 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
             {
                 LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lParam;
                 const char* treePath = GetTreeViewNotifyPath(HTreeView, pnmtv->itemNew.hItem);
-                if (TreeViewActive && Is(ptDisk) && treePath != NULL && treePath[0] != 0 &&
-                    !IsTheSamePath(treePath, GetPath()))
+                CFilesWindow* sourcePanel = GetTreeViewSourcePanel();
+                if (TreeViewActive && sourcePanel != NULL && sourcePanel->Is(ptDisk) &&
+                    treePath != NULL && treePath[0] != 0 &&
+                    !IsTheSamePath(treePath, sourcePanel->GetPath()))
                 {
-                    ChangePathToDisk(HWindow, treePath);
+                    sourcePanel->ChangePathToDisk(sourcePanel->HWindow, treePath);
                 }
                 return 0;
             }
@@ -1120,8 +1128,7 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         SelectViewTemplate(index, FALSE, FALSE);
         ShowWindow(ListBox->HWindow, SW_SHOW);
-        UpdateTreeView(MainWindow->GetActivePanel() == this ||
-                       MainWindow->GetActivePanel() == NULL && MainWindow->LeftPanel == this);
+        UpdateTreeView(MainWindow->LeftPanel == this);
 
         // srovname nastaveni promenne AutomaticRefresh a directory-liny
         SetAutomaticRefresh(AutomaticRefresh, TRUE);
