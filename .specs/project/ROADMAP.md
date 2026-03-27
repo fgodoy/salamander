@@ -14,7 +14,9 @@
 ## In Progress
 
 - Manual smoke and follow-up polish for recent UI changes
+- UI modernization discovery and path selection
 
 ## Backlog
 
 - Reduce runtime issues caused by optional or non-open-source plugin dependencies in development builds
+- UI modernization implementation waves after path decision

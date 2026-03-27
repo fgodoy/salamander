@@ -44,6 +44,7 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 ### Project Timeline
 
 - 2026-03-27: Panel TreeView feature completed with menu/config toggle, fixed left-side host, active-panel synchronization, persisted width, and successful ```Debug|Win32``` solution build validation
+- 2026-03-27: UI modernization study started to evaluate incremental refresh, shell refactor, hybrid surfaces, and full rewrite paths
 
 ### Contributing
 
