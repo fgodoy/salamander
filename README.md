@@ -47,6 +47,7 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 - 2026-03-27: UI modernization study started to evaluate incremental refresh, shell refactor, hybrid surfaces, and full rewrite paths
 - 2026-03-27: TreeView rich file-icon feature specified to support recognizable folder/file icons and file-location behavior from the tree
 - 2026-03-27: TreeView rich file-icon design completed with shell-image-list reuse, mixed dir/file node model, and file-focus integration via ```WM_USER_FOCUSFILE```
+- 2026-03-27: TreeView rich file-icon tasks prepared with an implementation order centered on typed node payloads, shell icons, mixed population, and file-focus behavior
 
 ### Contributing
 

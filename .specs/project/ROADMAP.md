@@ -17,6 +17,7 @@
 - UI modernization discovery and path selection
 - TreeView rich file-icon feature specification
 - TreeView rich file-icon feature design
+- TreeView rich file-icon feature tasks
 
 ## Backlog
 
