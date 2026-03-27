@@ -752,10 +752,13 @@ public:
     CFilesBox* ListBox;
     CStatusWindow *StatusLine,
         *DirectoryLine;
+    HWND HTreeView;
 
     BOOL StatusLineVisible;
     BOOL DirectoryLineVisible;
     BOOL HeaderLineVisible;
+    BOOL TreeViewActive;
+    BOOL TreeViewDisableNotify;
 
     CMainWindow* Parent;
 
@@ -1243,6 +1246,11 @@ public:
     void ToggleStatusLine();
     void ToggleDirectoryLine();
     void ToggleHeaderLine();
+    void CreateTreeView();
+    void DestroyTreeView();
+    void UpdateTreeView(BOOL active);
+    void RefreshTreeView();
+    BOOL PopulateTreeViewItem(HTREEITEM hItem);
 
     void ConnectNet(BOOL readOnlyUNC, const char* netRootPath = NULL, BOOL changeToNewDrive = TRUE, char* newlyMappedDrive = NULL);
     void DisconnectNet();

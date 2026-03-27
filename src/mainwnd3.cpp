@@ -4054,6 +4054,14 @@ MENU_TEMPLATE_ITEM AddToSystemMenu[] =
             break;
         }
 
+        case CM_TOGGLETREEVIEW:
+        {
+            ToggleTreeView();
+            IdleRefreshStates = TRUE; // on the next Idle, force a check of status variables
+            LayoutWindows();
+            break;
+        }
+
         case CM_TOGGLE_UMLABELS:
         {
             UMToolBar->ToggleLabels();
@@ -4941,6 +4949,7 @@ MENU_TEMPLATE_ITEM AddToSystemMenu[] =
             popup->CheckItem(CM_TOGGLEDRIVEBAR2, FALSE, DriveBar2->HWindow != NULL);
             popup->CheckItem(CM_TOGGLEEDITLINE, FALSE, EditPermanentVisible);
             popup->CheckItem(CM_TOGGLEBOTTOMTOOLBAR, FALSE, BottomToolBar->HWindow != NULL);
+            popup->CheckItem(CM_TOGGLETREEVIEW, FALSE, Configuration.TreeViewVisible);
             popup->CheckItem(CM_TOGGLE_UMLABELS, FALSE, Configuration.UserMenuToolbarLabels);
             popup->CheckItem(CM_TOGGLE_GRIPS, FALSE, !Configuration.GripsVisible);
             break;

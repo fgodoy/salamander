@@ -4,6 +4,8 @@
 
 #include "precomp.h"
 
+#include <uxtheme.h>
+
 #include "cfgdlg.h"
 #include "mainwnd.h"
 #include "usermenu.h"
@@ -1370,6 +1372,68 @@ BOOL CFilesWindow::PrepareCloseCurrentPath(HWND parent, BOOL canForce, BOOL canD
                 return FALSE;
             }
         }
+    }
+}
+
+void CFilesWindow::CreateTreeView()
+{
+    CALL_STACK_MESSAGE1("CFilesWindow::CreateTreeView()");
+    if (HWindow == NULL)
+    {
+        TRACE_E("HWindow == NULL");
+        return;
+    }
+    if (HTreeView != NULL)
+        return;
+
+    BOOL appIsThemed = IsAppThemed();
+    HTreeView = CreateWindowEx(WS_EX_STATICEDGE, WC_TREEVIEW, "",
+                               WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP | WS_VSCROLL |
+                                   TVS_DISABLEDRAGDROP | TVS_HASBUTTONS | TVS_LINESATROOT |
+                                   TVS_SHOWSELALWAYS | (appIsThemed ? TVS_FULLROWSELECT : TVS_HASLINES),
+                               0, 0, 0, 0,
+                               HWindow, (HMENU)IDC_TREEVIEW, HInstance, NULL);
+    if (HTreeView == NULL)
+    {
+        TRACE_E("Unable to create tree-view.");
+        return;
+    }
+    if (appIsThemed)
+        SetWindowTheme(HTreeView, L"explorer", NULL);
+}
+
+void CFilesWindow::DestroyTreeView()
+{
+    CALL_STACK_MESSAGE1("CFilesWindow::DestroyTreeView()");
+    if (HTreeView != NULL)
+    {
+        DestroyWindow(HTreeView);
+        HTreeView = NULL;
+    }
+}
+
+void CFilesWindow::UpdateTreeView(BOOL active)
+{
+    CALL_STACK_MESSAGE2("CFilesWindow::UpdateTreeView(%d)", active);
+    TreeViewActive = active && Configuration.TreeViewVisible;
+    if (Configuration.TreeViewVisible)
+        CreateTreeView();
+    else
+        DestroyTreeView();
+
+    if (HTreeView != NULL)
+    {
+        ShowWindow(HTreeView, TreeViewActive ? SW_SHOW : SW_HIDE);
+        if (TreeViewActive)
+            RefreshTreeView();
+    }
+
+    if (HWindow != NULL)
+    {
+        RECT r;
+        GetClientRect(HWindow, &r);
+        SendMessage(HWindow, WM_SIZE, SIZE_RESTORED,
+                    MAKELONG(r.right - r.left, r.bottom - r.top));
     }
 }
 

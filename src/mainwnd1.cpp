@@ -766,6 +766,22 @@ BOOL CMainWindow::ToggleBottomToolBar()
     }
 }
 
+BOOL CMainWindow::ToggleTreeView()
+{
+    CALL_STACK_MESSAGE1("CMainWindow::ToggleTreeView()");
+
+    Configuration.TreeViewVisible = !Configuration.TreeViewVisible;
+
+    CFilesWindow* activePanel = GetActivePanel();
+    if (activePanel == NULL)
+        activePanel = LeftPanel;
+
+    LeftPanel->UpdateTreeView(activePanel == LeftPanel);
+    RightPanel->UpdateTreeView(activePanel == RightPanel);
+
+    return TRUE;
+}
+
 void CMainWindow::ToggleToolBarGrips()
 {
     CALL_STACK_MESSAGE1("CMainWindow::ToggleToolBarGrips()");

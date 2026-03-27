@@ -54,6 +54,21 @@ BOOL IsCustomEventGUID(LPARAM lParam, REFGUID guidEvent)
     return ret;
 }
 
+static const char* GetTreeViewNotifyPath(HWND hTreeView, HTREEITEM hItem)
+{
+    if (hTreeView == NULL || hItem == NULL)
+        return NULL;
+
+    TVITEM item;
+    memset(&item, 0, sizeof(item));
+    item.mask = TVIF_PARAM;
+    item.hItem = hItem;
+    if (!TreeView_GetItem(hTreeView, &item))
+        return NULL;
+
+    return (const char*)item.lParam;
+}
+
 //****************************************************************************
 //
 // WindowProc
@@ -78,6 +93,9 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             int dlHeight = 3;
             int stHeight = 0;
+            int treeWidth = 0;
+            int listX = 0;
+            int listWidth = width;
             int windowsCount = 1;
             if (DirectoryLine->HWindow != NULL)
             {
@@ -94,6 +112,17 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
                 InvalidateRect(StatusLine->HWindow, NULL, FALSE);
                 windowsCount++;
             }
+            if (HTreeView != NULL && TreeViewActive)
+            {
+                treeWidth = Configuration.TreeViewWidth;
+                if (treeWidth < 0)
+                    treeWidth = 0;
+                if (treeWidth > width - 50)
+                    treeWidth = max(0, width - 50);
+                listX = treeWidth;
+                listWidth = width - treeWidth;
+                windowsCount++;
+            }
 
             HDWP hdwp = HANDLES(BeginDeferWindowPos(windowsCount));
             if (hdwp != NULL)
@@ -103,8 +132,13 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
                                                   0, 0, width, dlHeight,
                                                   SWP_NOACTIVATE | SWP_NOZORDER));
 
+                if (HTreeView != NULL && TreeViewActive)
+                    hdwp = HANDLES(DeferWindowPos(hdwp, HTreeView, NULL,
+                                                  0, dlHeight, treeWidth, height - stHeight - dlHeight,
+                                                  SWP_NOACTIVATE | SWP_NOZORDER));
+
                 hdwp = HANDLES(DeferWindowPos(hdwp, ListBox->HWindow, NULL,
-                                              0, dlHeight, width, height - stHeight - dlHeight,
+                                              listX, dlHeight, listWidth, height - stHeight - dlHeight,
                                               SWP_NOACTIVATE | SWP_NOZORDER));
 
                 if (StatusLine->HWindow != NULL)
@@ -132,6 +166,48 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
         }
         return TRUE;
+    }
+
+    case WM_NOTIFY:
+    {
+        LPNMHDR lphdr = (LPNMHDR)lParam;
+        if (lphdr != NULL && lphdr->hwndFrom == HTreeView)
+        {
+            if (lphdr->code == TVN_DELETEITEM)
+            {
+                LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lParam;
+                if (pnmtv->itemOld.lParam != 0)
+                    free((void*)pnmtv->itemOld.lParam);
+                return 0;
+            }
+
+            if (TreeViewDisableNotify)
+                return 0;
+
+            switch (lphdr->code)
+            {
+            case TVN_ITEMEXPANDING:
+            {
+                LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lParam;
+                if (pnmtv->action == TVE_EXPAND)
+                    PopulateTreeViewItem(pnmtv->itemNew.hItem);
+                return 0;
+            }
+
+            case TVN_SELCHANGED:
+            {
+                LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lParam;
+                const char* treePath = GetTreeViewNotifyPath(HTreeView, pnmtv->itemNew.hItem);
+                if (TreeViewActive && Is(ptDisk) && treePath != NULL && treePath[0] != 0 &&
+                    !IsTheSamePath(treePath, GetPath()))
+                {
+                    ChangePathToDisk(HWindow, treePath);
+                }
+                return 0;
+            }
+            }
+        }
+        break;
     }
 
     case WM_DEVICECHANGE:
@@ -1044,6 +1120,8 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         SelectViewTemplate(index, FALSE, FALSE);
         ShowWindow(ListBox->HWindow, SW_SHOW);
+        UpdateTreeView(MainWindow->GetActivePanel() == this ||
+                       MainWindow->GetActivePanel() == NULL && MainWindow->LeftPanel == this);
 
         // srovname nastaveni promenne AutomaticRefresh a directory-liny
         SetAutomaticRefresh(AutomaticRefresh, TRUE);
@@ -1062,6 +1140,7 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
         DetachDirectory(this);
         //---  uvolneni child-oken
         RevokeDragDrop();
+        DestroyTreeView();
         ListBox->DetachWindow();
         delete ListBox;
         ListBox = NULL; // pro jistotu, at se chyby ukazou...

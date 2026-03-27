@@ -582,6 +582,7 @@ public:
     BOOL TogglePluginsBar(BOOL storePos = TRUE);
     BOOL ToggleMiddleToolBar();
     BOOL ToggleBottomToolBar();
+    BOOL ToggleTreeView();
     BOOL ToggleUserMenuToolBar(BOOL storePos = TRUE);
     BOOL ToggleHotPathsBar(BOOL storePos = TRUE);
     // If 'twoDriveBars' is TRUE, the user wants two drive lists; otherwise only one
