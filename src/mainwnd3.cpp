@@ -5105,9 +5105,43 @@ MENU_TEMPLATE_ITEM AddToSystemMenu[] =
             }
             if (uMsg == WM_LBUTTONDBLCLK)
             {
-                if (SplitPosition != 0.5)
+                double targetSplitPosition = 0.5;
+                if (LeftPanel != NULL && RightPanel != NULL &&
+                    LeftPanel->TreeViewActive &&
+                    LeftPanel->ListBox != NULL && LeftPanel->ListBox->HWindow != NULL)
                 {
-                    SplitPosition = 0.5;
+                    RECT leftPanelRect;
+                    RECT rightPanelRect;
+                    RECT leftListRect;
+                    GetWindowRect(LeftPanel->HWindow, &leftPanelRect);
+                    GetWindowRect(RightPanel->HWindow, &rightPanelRect);
+                    GetWindowRect(LeftPanel->ListBox->HWindow, &leftListRect);
+                    MapWindowPoints(NULL, HWindow, (POINT*)&leftPanelRect, 2);
+                    MapWindowPoints(NULL, HWindow, (POINT*)&rightPanelRect, 2);
+                    MapWindowPoints(NULL, HWindow, (POINT*)&leftListRect, 2);
+
+                    int leftPanelWidth = leftPanelRect.right - leftPanelRect.left;
+                    int rightPanelWidth = rightPanelRect.right - rightPanelRect.left;
+                    int leftListWidth = leftListRect.right - leftListRect.left;
+                    int treeReservedWidth = leftPanelWidth - leftListWidth;
+
+                    if (leftPanelWidth > 0 && rightPanelWidth > 0 &&
+                        leftListWidth > 0 && treeReservedWidth > 0)
+                    {
+                        int totalPanelsWidth = leftPanelWidth + rightPanelWidth;
+                        int targetLeftWidth = (totalPanelsWidth + treeReservedWidth) / 2;
+                        int splitWidth = MainWindow->GetSplitBarWidth();
+                        targetSplitPosition = (double)(targetLeftWidth + 1) / (WindowWidth - splitWidth);
+                        if (targetSplitPosition < 0)
+                            targetSplitPosition = 0;
+                        if (targetSplitPosition > 1)
+                            targetSplitPosition = 1;
+                    }
+                }
+
+                if (fabs(SplitPosition - targetSplitPosition) > 0.0001)
+                {
+                    SplitPosition = targetSplitPosition;
                     LayoutWindows();
                     FocusPanel(GetActivePanel());
                 }

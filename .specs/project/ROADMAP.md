@@ -9,6 +9,7 @@
   - host fixo no painel esquerdo
   - conteúdo sincronizado com o painel ativo
   - redimensionamento lateral com persistência de largura
+  - double click no splitter central passa a centralizar as áreas úteis dos listboxes quando o tree está aberto
   - validação por build `Debug|Win32`
 - Panel TreeView Rich File Icons
   - payload tipado para nós de pasta e arquivo
