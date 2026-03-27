@@ -321,6 +321,7 @@ CMainWindow::CMainWindow() : ChangeNotifArray(3, 5)
     WindowWidth = WindowHeight = EditHeight = 0;
     SplitPosition = 0.5; // split is in the middle
     BeforeZoomSplitPosition = 0.5;
+    KeepSplitPositionCenteredOnVisiblePanes = FALSE;
     DragMode = FALSE;
     ContextMenuNew = new CMenuNew;
     ContextMenuChngDrv = NULL;
@@ -774,6 +775,12 @@ BOOL CMainWindow::ToggleTreeView()
 
     LeftPanel->UpdateTreeView(TRUE);
     RightPanel->UpdateTreeView(FALSE);
+
+    if (KeepSplitPositionCenteredOnVisiblePanes)
+    {
+        UpdateCenteredSplitPosition();
+        LayoutWindows();
+    }
 
     return TRUE;
 }
@@ -2450,6 +2457,7 @@ MENU_TEMPLATE_ITEM InfoLineMenu[] =
     // evaluate the result
     if (hit == mwhteSplitLine)
     {
+        KeepSplitPositionCenteredOnVisiblePanes = FALSE;
         SplitPosition = (double)cmd / 10;
         LayoutWindows();
         return;

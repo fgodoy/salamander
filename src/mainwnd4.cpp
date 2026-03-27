@@ -114,6 +114,38 @@ void CMainWindow::GetWindowSplitRect(RECT& r)
     r.bottom = WindowHeight - EditHeight - BottomToolBarHeight;
 }
 
+double CMainWindow::GetVisiblePanesCenteredSplitPosition()
+{
+    int splitWidth = GetSplitBarWidth();
+    int totalPanelsWidth = WindowWidth - 2 - splitWidth;
+    if (totalPanelsWidth <= 0)
+        return 0.5;
+
+    int targetLeftWidth = totalPanelsWidth / 2;
+    if (LeftPanel != NULL)
+    {
+        int probeLeftWidth = targetLeftWidth;
+        for (int i = 0; i < 3; i++)
+        {
+            int reservedWidth = LeftPanel->GetTreeViewReservedWidth(probeLeftWidth);
+            targetLeftWidth = (totalPanelsWidth + reservedWidth) / 2;
+            probeLeftWidth = targetLeftWidth;
+        }
+    }
+
+    double splitPosition = (double)(targetLeftWidth + 1) / (WindowWidth - splitWidth);
+    if (splitPosition < 0)
+        splitPosition = 0;
+    if (splitPosition > 1)
+        splitPosition = 1;
+    return splitPosition;
+}
+
+void CMainWindow::UpdateCenteredSplitPosition()
+{
+    SplitPosition = GetVisiblePanesCenteredSplitPosition();
+}
+
 BOOL CMainWindow::PtInChild(HWND hChild, POINT p)
 {
     if (hChild == NULL)
@@ -1180,6 +1212,7 @@ void CMainWindow::ChangePanel(BOOL force)
                 SplitPosition = 0.0;
             else
                 SplitPosition = 1.0;
+            KeepSplitPositionCenteredOnVisiblePanes = FALSE;
             LayoutWindows();
             change = TRUE;
         }

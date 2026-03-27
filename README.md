@@ -45,6 +45,8 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 
 - 2026-03-27: Panel TreeView feature completed with menu/config toggle, fixed left-side host, active-panel synchronization, persisted width, and successful ```Debug|Win32``` solution build validation
 - 2026-03-27: Double click on the central splitter was adjusted so, with the tree open, the visible file panes rebalance using the tree-reserved width and end up with matching list area widths
+- 2026-03-27: The centered splitter mode was made sticky across resize, maximize, and treeview show/hide transitions so balanced visible file-pane widths are preserved after reflow
+- 2026-03-27: The treeview toggle command path was finalized so `Ctrl+Shift+T` reapplies the centered split calculation at the end of the command, preventing residual misalignment after hide/show
 - 2026-03-27: UI modernization study started to evaluate incremental refresh, shell refactor, hybrid surfaces, and full rewrite paths
 - 2026-03-27: TreeView rich file-icon feature specified to support recognizable folder/file icons and file-location behavior from the tree
 - 2026-03-27: TreeView rich file-icon design completed with shell-image-list reuse, mixed dir/file node model, and file-focus integration via ```WM_USER_FOCUSFILE```

@@ -164,6 +164,13 @@ int CFilesWindow::GetTreeViewWidth(int clientWidth)
     return ClampTreeViewWidth(clientWidth, Configuration.TreeViewWidth);
 }
 
+int CFilesWindow::GetTreeViewReservedWidth(int clientWidth)
+{
+    if (!IsTreeViewHost() || !TreeViewActive)
+        return 0;
+    return GetTreeViewWidth(clientWidth) + TREEVIEW_SPLITTER_WIDTH;
+}
+
 COLORREF CFilesWindow::GetTreeViewTextColor()
 {
     return GetCOLORREF(CurrentColors[ITEM_FG_NORMAL]);

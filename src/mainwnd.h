@@ -475,6 +475,7 @@ protected:
         BeforeZoomSplitPosition, // split position before panel zoom
         DragSplitPosition;       // shown in the tooltip
     CToolTipWindow ToolTipWindow;
+    BOOL KeepSplitPositionCenteredOnVisiblePanes;
 
     BOOL FirstActivateApp; // WM_ACTIVATEAPP uses this variable during startup
 
@@ -492,6 +493,8 @@ public:
     void ClearHistory(); // clears all histories
 
     void GetSplitRect(RECT& r);
+    double GetVisiblePanesCenteredSplitPosition();
+    void UpdateCenteredSplitPosition();
 
     BOOL IsGood();
 

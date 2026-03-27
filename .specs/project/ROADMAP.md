@@ -10,6 +10,8 @@
   - conteúdo sincronizado com o painel ativo
   - redimensionamento lateral com persistência de largura
   - double click no splitter central passa a centralizar as áreas úteis dos listboxes quando o tree está aberto
+  - modo centralizado do splitter passa a persistir em resize, maximize e toggle de visibilidade do tree
+  - atalho `Ctrl+Shift+T` reaplica o recálculo centralizado no passo final do comando para evitar desalinhamento residual
   - validação por build `Debug|Win32`
 - Panel TreeView Rich File Icons
   - payload tipado para nós de pasta e arquivo
