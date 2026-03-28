@@ -716,6 +716,7 @@ struct CTreeViewNodeData
     char* FocusName;
     int ImageIndex;
     int SelectedImageIndex;
+    BOOL Populated;
 };
 
 class CFilesWindow : public CFilesWindowAncestor
@@ -1279,7 +1280,7 @@ public:
     void DestroyTreeView();
     void UpdateTreeView(BOOL active);
     void RefreshTreeView();
-    BOOL PopulateTreeViewItem(HTREEITEM hItem);
+    BOOL PopulateTreeViewItem(HTREEITEM hItem, BOOL forceRefresh = FALSE);
 
     void ConnectNet(BOOL readOnlyUNC, const char* netRootPath = NULL, BOOL changeToNewDrive = TRUE, char* newlyMappedDrive = NULL);
     void DisconnectNet();

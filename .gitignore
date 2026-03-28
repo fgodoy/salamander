@@ -8,6 +8,7 @@ Thumbs.db
 .vs/
 *.aps
 *.vcxproj.user
+/out/
 /src/plugins/automation/generated/automation.tlb
 /src/plugins/automation/generated/dlldata.c
 /src/plugins/automation/generated/salamander_h.h

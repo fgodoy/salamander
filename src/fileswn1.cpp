@@ -64,6 +64,21 @@ static BOOL GetTreeViewItemData(HWND hTreeView, HTREEITEM hItem, CTreeViewNodeDa
     return TRUE;
 }
 
+static CTreeViewNodeData* GetTreeViewItemDataPtr(HWND hTreeView, HTREEITEM hItem)
+{
+    if (hTreeView == NULL || hItem == NULL)
+        return NULL;
+
+    TVITEM item;
+    memset(&item, 0, sizeof(item));
+    item.mask = TVIF_PARAM;
+    item.hItem = hItem;
+    if (!TreeView_GetItem(hTreeView, &item) || item.lParam == 0)
+        return NULL;
+
+    return (CTreeViewNodeData*)item.lParam;
+}
+
 static const char* GetTreeViewItemPath(HWND hTreeView, HTREEITEM hItem)
 {
     CTreeViewNodeData itemData;
@@ -80,6 +95,19 @@ static BOOL IsTreeViewDirectoryItem(HWND hTreeView, HTREEITEM hItem)
         return FALSE;
 
     return itemData.Type == tvntDirectory;
+}
+
+static HTREEITEM FindTreeViewChildByPath(HWND hTreeView, HTREEITEM hParent, const char* path)
+{
+    HTREEITEM hChild = TreeView_GetChild(hTreeView, hParent);
+    while (hChild != NULL)
+    {
+        const char* childPath = GetTreeViewItemPath(hTreeView, hChild);
+        if (childPath != NULL && IsTheSamePath(childPath, path))
+            return hChild;
+        hChild = TreeView_GetNextSibling(hTreeView, hChild);
+    }
+    return NULL;
 }
 
 static void SetTreeViewItemChildren(HWND hTreeView, HTREEITEM hItem, int children)
@@ -521,97 +549,142 @@ void CFilesWindow::RefreshTreeView()
         return;
     }
 
-    TreeViewDisableNotify = TRUE;
-    TreeView_DeleteAllItems(HTreeView);
-
-    CFilesWindow* sourcePanel = GetTreeViewSourcePanel();
-    if (sourcePanel == NULL || !sourcePanel->Is(ptDisk))
+    BOOL hadSelectedFile = FALSE;
+    char selectedFileFullPath[MAX_PATH];
+    char selectedFileFocusPath[MAX_PATH];
+    selectedFileFullPath[0] = 0;
+    selectedFileFocusPath[0] = 0;
+    HTREEITEM hSelected = TreeView_GetSelection(HTreeView);
+    if (hSelected != NULL)
     {
-        EnableWindow(HTreeView, FALSE);
-        TreeViewDisableNotify = FALSE;
-        return;
-    }
-
-    EnableWindow(HTreeView, TRUE);
-    UpdateTreeViewColors();
-
-    const char* sourcePath = sourcePanel->GetPath();
-    char root[MAX_PATH];
-    GetRootPath(root, sourcePath);
-    if (root[0] == 0)
-    {
-        TreeViewDisableNotify = FALSE;
-        return;
-    }
-
-    HTREEITEM hCurrent = InsertTreeViewItem(HTreeView, TVI_ROOT, root, tvntDirectory, root, root, NULL, TRUE);
-    if (hCurrent == NULL)
-    {
-        TreeViewDisableNotify = FALSE;
-        return;
-    }
-
-    PopulateTreeViewItem(hCurrent);
-    TreeView_Expand(HTreeView, hCurrent, TVE_EXPAND);
-
-    if (!IsTheSamePath(root, sourcePath))
-    {
-        char currentPath[MAX_PATH];
-        lstrcpyn(currentPath, root, MAX_PATH);
-
-        const char* segment = sourcePath + strlen(root);
-        while (*segment == '\\' || *segment == '/')
-            segment++;
-
-        while (*segment != 0)
+        CTreeViewNodeData selectedItemData;
+        if (GetTreeViewItemData(HTreeView, hSelected, &selectedItemData) &&
+            selectedItemData.Type == tvntFile &&
+            selectedItemData.FullPath != NULL && selectedItemData.FocusPath != NULL)
         {
-            char nextPath[MAX_PATH];
-            lstrcpyn(nextPath, currentPath, MAX_PATH);
-
-            char name[MAX_PATH];
-            int len = 0;
-            while (segment[len] != 0 && segment[len] != '\\' && segment[len] != '/')
-                len++;
-            memcpy(name, segment, len);
-            name[len] = 0;
-
-            if (!SalPathAppend(nextPath, name, MAX_PATH))
-                break;
-
-            HTREEITEM hChild = TreeView_GetChild(HTreeView, hCurrent);
-            while (hChild != NULL)
-            {
-                const char* childPath = GetTreeViewItemPath(HTreeView, hChild);
-                if (childPath != NULL && IsTheSamePath(childPath, nextPath))
-                    break;
-                hChild = TreeView_GetNextSibling(HTreeView, hChild);
-            }
-
-            if (hChild == NULL)
-                break;
-
-            hCurrent = hChild;
-            lstrcpyn(currentPath, nextPath, MAX_PATH);
-            PopulateTreeViewItem(hCurrent);
-            TreeView_Expand(HTreeView, hCurrent, TVE_EXPAND);
-
-            segment += len;
-            while (*segment == '\\' || *segment == '/')
-                segment++;
+            hadSelectedFile = TRUE;
+            lstrcpyn(selectedFileFullPath, selectedItemData.FullPath, MAX_PATH);
+            lstrcpyn(selectedFileFocusPath, selectedItemData.FocusPath, MAX_PATH);
         }
     }
 
-    TreeView_SelectItem(HTreeView, hCurrent);
-    TreeView_EnsureVisible(HTreeView, hCurrent);
+    TreeViewDisableNotify = TRUE;
+    SendMessage(HTreeView, WM_SETREDRAW, FALSE, 0);
+
+    do
+    {
+        CFilesWindow* sourcePanel = GetTreeViewSourcePanel();
+        if (sourcePanel == NULL || !sourcePanel->Is(ptDisk))
+        {
+            EnableWindow(HTreeView, FALSE);
+            TreeView_DeleteAllItems(HTreeView);
+            break;
+        }
+
+        EnableWindow(HTreeView, TRUE);
+        UpdateTreeViewColors();
+
+        const char* sourcePath = sourcePanel->GetPath();
+        char root[MAX_PATH];
+        GetRootPath(root, sourcePath);
+        if (root[0] == 0)
+        {
+            TreeView_DeleteAllItems(HTreeView);
+            break;
+        }
+
+        HTREEITEM hCurrent = TreeView_GetRoot(HTreeView);
+        if (hCurrent == NULL)
+            hCurrent = InsertTreeViewItem(HTreeView, TVI_ROOT, root, tvntDirectory, root, root, NULL, TRUE);
+        else
+        {
+            const char* rootPath = GetTreeViewItemPath(HTreeView, hCurrent);
+            if (rootPath == NULL || !IsTheSamePath(rootPath, root))
+            {
+                TreeView_DeleteAllItems(HTreeView);
+                hCurrent = InsertTreeViewItem(HTreeView, TVI_ROOT, root, tvntDirectory, root, root, NULL, TRUE);
+            }
+        }
+        if (hCurrent == NULL)
+            break;
+
+        PopulateTreeViewItem(hCurrent);
+        TreeView_Expand(HTreeView, hCurrent, TVE_EXPAND);
+
+        if (!IsTheSamePath(root, sourcePath))
+        {
+            char currentPath[MAX_PATH];
+            lstrcpyn(currentPath, root, MAX_PATH);
+
+            const char* segment = sourcePath + strlen(root);
+            while (*segment == '\\' || *segment == '/')
+                segment++;
+
+            while (*segment != 0)
+            {
+                char nextPath[MAX_PATH];
+                lstrcpyn(nextPath, currentPath, MAX_PATH);
+
+                char name[MAX_PATH];
+                int len = 0;
+                while (segment[len] != 0 && segment[len] != '\\' && segment[len] != '/')
+                    len++;
+                memcpy(name, segment, len);
+                name[len] = 0;
+
+                if (!SalPathAppend(nextPath, name, MAX_PATH))
+                    break;
+
+                HTREEITEM hChild = FindTreeViewChildByPath(HTreeView, hCurrent, nextPath);
+                if (hChild == NULL)
+                {
+                    PopulateTreeViewItem(hCurrent, TRUE);
+                    hChild = FindTreeViewChildByPath(HTreeView, hCurrent, nextPath);
+                }
+
+                if (hChild == NULL)
+                    break;
+
+                hCurrent = hChild;
+                lstrcpyn(currentPath, nextPath, MAX_PATH);
+                PopulateTreeViewItem(hCurrent);
+                TreeView_Expand(HTreeView, hCurrent, TVE_EXPAND);
+
+                segment += len;
+                while (*segment == '\\' || *segment == '/')
+                    segment++;
+            }
+        }
+
+        PopulateTreeViewItem(hCurrent, TRUE);
+
+        HTREEITEM hSelect = hCurrent;
+        if (hadSelectedFile && IsTheSamePath(selectedFileFocusPath, sourcePath))
+        {
+            HTREEITEM hSelectedFile = FindTreeViewChildByPath(HTreeView, hCurrent, selectedFileFullPath);
+            if (hSelectedFile != NULL)
+                hSelect = hSelectedFile;
+        }
+
+        TreeView_SelectItem(HTreeView, hSelect);
+        TreeView_EnsureVisible(HTreeView, hSelect);
+    } while (0);
+
+    SendMessage(HTreeView, WM_SETREDRAW, TRUE, 0);
+    RedrawWindow(HTreeView, NULL, NULL, RDW_INVALIDATE | RDW_NOERASE | RDW_UPDATENOW);
     TreeViewDisableNotify = FALSE;
 }
 
-BOOL CFilesWindow::PopulateTreeViewItem(HTREEITEM hItem)
+BOOL CFilesWindow::PopulateTreeViewItem(HTREEITEM hItem, BOOL forceRefresh)
 {
     CALL_STACK_MESSAGE1("CFilesWindow::PopulateTreeViewItem()");
 
     CFilesWindow* sourcePanel = GetTreeViewSourcePanel();
     if (HTreeView == NULL || hItem == NULL || sourcePanel == NULL || !sourcePanel->Is(ptDisk))
+        return FALSE;
+
+    CTreeViewNodeData* itemData = GetTreeViewItemDataPtr(HTreeView, hItem);
+    if (itemData == NULL)
         return FALSE;
 
     const char* itemPath = GetTreeViewItemPath(HTreeView, hItem);
@@ -622,6 +695,9 @@ BOOL CFilesWindow::PopulateTreeViewItem(HTREEITEM hItem)
         SetTreeViewItemChildren(HTreeView, hItem, 0);
         return FALSE;
     }
+
+    if (!forceRefresh && itemData->Populated)
+        return TreeView_GetChild(HTreeView, hItem) != NULL;
 
     HTREEITEM hChild = TreeView_GetChild(HTreeView, hItem);
     while (hChild != NULL)
@@ -699,6 +775,7 @@ BOOL CFilesWindow::PopulateTreeViewItem(HTREEITEM hItem)
     free(dirEntries);
     free(fileEntries);
 
+    itemData->Populated = TRUE;
     SetTreeViewItemChildren(HTreeView, hItem, dirCount > 0 ? 1 : 0);
     return hasChildren;
 }

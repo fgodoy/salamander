@@ -202,7 +202,7 @@ void CFilesWindow::UpdateTreeViewColors()
     TreeView_SetTextColor(HTreeView, GetTreeViewTextColor());
     TreeView_SetBkColor(HTreeView, GetTreeViewBkColor());
     TreeView_SetLineColor(HTreeView, GetTreeViewTextColor());
-    InvalidateRect(HTreeView, NULL, TRUE);
+    InvalidateRect(HTreeView, NULL, FALSE);
 }
 
 void CFilesWindow::SetTreeViewWidth(int width)
@@ -1661,7 +1661,6 @@ void CFilesWindow::UpdateTreeView(BOOL active)
     if (HTreeView != NULL)
     {
         ShowWindow(HTreeView, TreeViewActive ? SW_SHOW : SW_HIDE);
-        UpdateTreeViewColors();
         if (TreeViewActive)
             RefreshTreeView();
     }

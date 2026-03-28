@@ -1429,6 +1429,18 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
     case WM_SETFOCUS:
     {
+        if (HTreeView != NULL && TreeViewActive)
+        {
+            POINT pt;
+            RECT r;
+            GetCursorPos(&pt);
+            GetWindowRect(HTreeView, &r);
+            if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0 && PtInRect(&r, pt))
+            {
+                SetFocus(HTreeView);
+                break;
+            }
+        }
         SetFocus(ListBox->HWindow);
         break;
     }
