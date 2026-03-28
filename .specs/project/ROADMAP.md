@@ -35,6 +35,7 @@
 - Manual smoke and follow-up polish for recent UI changes
 - UI modernization discovery and path selection
 - Manual smoke for TreeView rich file icons
+- Portuguese localization planning for distinct `pt-BR` and `pt-PT` support using the existing translation workflow
 
 ## Backlog
 

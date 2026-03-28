@@ -58,6 +58,8 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 - 2026-03-27: TreeView visual styles were disabled for the panel-hosted tree so Windows theming stops overriding the custom panel color mapping, with successful ```Debug|Win32``` build validation
 - 2026-03-27: TreeView selection background was aligned to the same effective panel brushes used in the file panels, preserving the configured highlight color such as ```8080ff```, with successful ```Debug|Win32``` build validation
 - 2026-03-27: TreeView selected-item default painting was neutralized so the control stops repainting the classic blue selection over the custom panel highlight, with successful ```Debug|Win32``` build validation
+- 2026-03-28: Portuguese localization feature specified to add distinct `pt-BR` and `pt-PT` support on top of the existing `.slt` / `.slg` translation workflow and current `LANGID`-based locale preference behavior
+- 2026-03-28: Portuguese localization design completed with a reuse-first approach centered on variant-specific `LANGID` metadata, locale-coded `pt-br` / `pt-pt` asset lines, main-app-first rollout, and minimal expected runtime code changes
 
 ### Contributing
 
