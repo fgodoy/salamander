@@ -60,6 +60,7 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 - 2026-03-27: TreeView selected-item default painting was neutralized so the control stops repainting the classic blue selection over the custom panel highlight, with successful ```Debug|Win32``` build validation
 - 2026-03-28: Portuguese localization feature specified to add distinct `pt-BR` and `pt-PT` support on top of the existing `.slt` / `.slg` translation workflow and current `LANGID`-based locale preference behavior
 - 2026-03-28: Portuguese localization design completed with a reuse-first approach centered on variant-specific `LANGID` metadata, locale-coded `pt-br` / `pt-pt` asset lines, main-app-first rollout, and minimal expected runtime code changes
+- 2026-03-28: Portuguese localization tasks prepared with a phased rollout centered on main-app Portuguese assets first, runtime locale-selection validation, optional selector hardening only if needed, and follow-up plugin and packaging extension slices
 
 ### Contributing
 
