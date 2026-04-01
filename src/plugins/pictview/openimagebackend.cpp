@@ -79,6 +79,7 @@ static BOOL GetMetadataValueUI2(IWICMetadataQueryReader* pReader, LPCWSTR pszQue
 static BOOL GetMetadataValueUI1(IWICMetadataQueryReader* pReader, LPCWSTR pszQuery, BYTE* pValue);
 static BOOL GetFrameExifOrientation(IWICBitmapFrameDecode* pFrame, DWORD format, WORD* pOrientation);
 static DWORD MapExifOrientationToFlags(WORD orientation);
+static BOOL HasFrameInfoForImage(const COpenImageBackendHandle* pHandle, DWORD imageIndex);
 static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex);
 static PVCODE DecodeFrameFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex);
 static PVCODE DecodeBitmapHandle(COpenImageBackendHandle* pHandle, HBITMAP hBitmap);
@@ -1419,9 +1420,12 @@ static PVCODE DecodeFrameFromFile(COpenImageBackendHandle* pHandle, DWORD imageI
     HRESULT hr;
     PVCODE ret;
 
-    ret = LoadFrameInfoFromFile(pHandle, imageIndex);
-    if (ret != PVC_OK)
-        return ret;
+    if (!HasFrameInfoForImage(pHandle, imageIndex))
+    {
+        ret = LoadFrameInfoFromFile(pHandle, imageIndex);
+        if (ret != PVC_OK)
+            return ret;
+    }
 
     if (FAILED(coInit.Hr))
         return HrToPVCode(coInit.Hr);
@@ -1541,6 +1545,17 @@ static PVCODE DecodeBitmapHandle(COpenImageBackendHandle* pHandle, HBITMAP hBitm
 static COpenImageBackendHandle* GetOpenImageBackendHandle(LPPVHandle Img)
 {
     return (COpenImageBackendHandle*)Img;
+}
+
+static BOOL HasFrameInfoForImage(const COpenImageBackendHandle* pHandle, DWORD imageIndex)
+{
+    if (pHandle == NULL || pHandle->BitmapSource || pHandle->FileName[0] == 0)
+        return FALSE;
+
+    return pHandle->ImageInfo.Width != 0 &&
+           pHandle->ImageInfo.Height != 0 &&
+           pHandle->ImageInfo.BytesPerLine != 0 &&
+           pHandle->ImageInfo.CurrentImage == imageIndex;
 }
 
 static PVCODE EnsureDecodedFrame(COpenImageBackendHandle* pHandle, DWORD imageIndex)
