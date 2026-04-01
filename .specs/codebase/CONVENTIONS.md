@@ -146,6 +146,9 @@ Estas diretivas passam a valer para o fluxo de trabalho e manutenção dos artef
 - sempre enviar uma sugestão de commit ao concluir uma tarefa
 - sempre incluir nos `design.md` de features um diagrama de comunicação entre componentes e um diagrama de sequência do fluxo principal
 - os diagramas em `design.md` devem usar cores com contraste suficiente para leitura em temas escuros
+- sempre que houver `validation.md`, checklist de smoke, plano de teste manual ou instruções de validação, escrever como roteiro operacional e não como lista seca
+- roteiros de validação manual devem incluir, quando aplicável: caminho do executável ou ambiente alvo, pré-requisitos/amostras, comando/menu/atalho para cada ação, passo a passo, resultado esperado, sinais de falha e um resumo curto para reporte do resultado
+- quando a checklist final de uma feature depender de ações na UI, cada item deve trazer explicitamente o “como fazer” para evitar ambiguidade e perda de tempo procurando comandos
 - sempre atualizar `.specs/project/ROADMAP.md` com o que foi finalizado
 - sempre atualizar `README.md` com scripts relevantes criados ou mantidos no fluxo do projeto
 - sempre atualizar `README.md` com o progresso registrado na timeline do projeto

@@ -72,6 +72,7 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 - 2026-04-01: A local `Debug_x86` runtime tree was prepared under `.localbuild\` with `salamand.exe`, `english.slg`, `pictview.spl`, and `exif.dll`, and a controlled boot smoke confirmed that the app stays alive long enough for manual testing
 - 2026-04-01: Local `Release_x86` and `Release_x64` runtime trees were prepared under `.localbuild\` with `salamand.exe`, `salmon.exe`, `pictview.spl`, `checkver.spl`, `demoplug.spl`, and the required language/resources for practical manual smoke on both architectures
 - 2026-04-01: The open PictView backend decode path now reuses already-loaded current-frame metadata instead of reloading it immediately before the first decode, trimming redundant work on the common open/view flow
+- 2026-04-01: Repository validation guidance was tightened so manual smoke and `validation.md` artifacts must be written as operational step-by-step scripts with command paths, shortcuts, expected results, and failure signals instead of ambiguous checklists
 
 ### Contributing
 

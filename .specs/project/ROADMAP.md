@@ -45,6 +45,9 @@
   - árvores locais de runtime `Release_x86` e `Release_x64` preparadas em `.localbuild\` com `salamand.exe`, `salmon.exe`, `pictview.spl`, `checkver.spl`, `demoplug.spl` e resources mínimos, e smoke de boot confirmou processo principal e bug reporter ativos nas duas arquiteturas
   - caminho de decode do backend open ajustado para reaproveitar metadados já carregados do frame atual, reduzindo um reload redundante no primeiro decode após o open/getinfo
   - validação por build `Debug|Win32` e `Debug|x64`
+- Validation Workflow Clarity
+  - convenções do repositório atualizadas para exigir que `validation.md`, checklists de smoke e guias de validação manual sejam escritos como roteiros operacionais com atalhos, passos, resultados esperados e sinais de falha
+  - estado do projeto atualizado para registrar a decisão persistente de evitar checklists ambíguas em fluxos de validação manual
 
 ## In Progress
 

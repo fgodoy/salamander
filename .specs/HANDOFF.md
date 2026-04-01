@@ -1,38 +1,42 @@
 # Handoff
 
-**Date:** 2026-03-27T19:16:00-03:00
-**Feature:** panel-treeview
-**Task:** quick follow-ups on treeview layout and panel split behavior - paused after validation
+**Date:** 2026-04-01T19:18:00-03:00
+**Feature:** `pictview-engine-replacement`
+**Task:** `T14` - implementation complete in repo, paused awaiting manual smoke and feature closeout
 
 ## Completed ✓
 
-- Kept the tree host fixed on the left panel and aligned the central splitter double-click so visible list areas rebalance when the tree is open.
-- Added sticky centered-split behavior so the balanced layout is preserved across resize and maximize.
-- Finalized the `Ctrl+Shift+T` command path so tree hide/show reapplies the centered split calculation at the end of the toggle command.
-- Updated project tracking docs in `.specs/project/ROADMAP.md` and `README.md` after each completed quick task.
-- Validated the latest code with the official build flow: `src\\vcxproj\\build.cmd Debug Win32` -> `Build succeeded. 0 Warning(s), 0 Error(s)`.
+- Replaced the main open-build PictView dependency on `PVW32Cnv.dll` / `PVW32Cnv.lib` with a local WIC-backed backend seam
+- Implemented open/decode/render/save support for MVP formats in `src/plugins/pictview/openimagebackend.cpp`
+- Added GIF sequence support, EXIF orientation bridge, clipboard open, crop, save-as, and pixel-access compatibility
+- Built and boot-smoked local `Release_x86` and `Release_x64` runtime trees in `.localbuild`
+- Expanded `.specs/features/pictview-engine-replacement/validation.md` into a step-by-step operational smoke script
+- Updated repository conventions so manual validation docs must be executable scripts instead of ambiguous checklists
 
 ## In Progress
 
-- No code is actively in progress.
-- Remaining validation is manual UX smoke in the built app.
+- Manual feature smoke for PictView on `Release_x64`
+- Specific location: `.specs/features/pictview-engine-replacement/validation.md`
 
 ## Pending
 
-- Resume with the next feature or quick task requested by the user.
-- If treeview color parity becomes important again, the next real step is owner-draw for the selected row because the stock `WC_TREEVIEW` still limits highlight fidelity.
+- Run the `validation.md` smoke script on `C:\Projetos\salamander\.localbuild\salamander\Release_x64\salamand.exe`
+- If all checks pass, mark the feature complete in `.specs/features/pictview-engine-replacement/tasks.md`, `.specs/project/ROADMAP.md`, and `.specs/project/STATE.md`
+- If smoke finds issues, fix the concrete regressions and re-run targeted validation
 
 ## Blockers
 
-- No current build blockers.
-- Known non-blocker runtime issue remains: optional plugin dependencies such as `PVW32Cnv.dll` are still absent in dev builds.
+- Manual smoke has not yet been executed end-to-end by the user, so the feature cannot be declared complete - impacts final closeout only
 
 ## Context
 
-- Branch: `main`
-- Uncommitted: latest session touched `.specs/project/ROADMAP.md`, `README.md`, `src/fileswnd.h`, `src/fileswn2.cpp`, `src/mainwnd.h`, `src/mainwnd1.cpp`, `src/mainwnd3.cpp`, and `src/mainwnd4.cpp`.
+- Branch: current branch not explicitly checked this session
+- Uncommitted:
+  - `.specs/codebase/CONVENTIONS.md`
+  - `.specs/features/pictview-engine-replacement/validation.md`
+  - `.specs/project/ROADMAP.md`
+  - `.specs/project/STATE.md`
+  - `README.md`
 - Related decisions:
-  - Tree host stays on the left panel only.
-  - Tree content mirrors the active panel.
-  - Splitter double-click should balance visible file-pane widths, not raw panel widths, when the tree is visible.
-  - Native `WC_TREEVIEW` highlight rendering was accepted as “good enough for now”; no full owner-draw implemented.
+  - `AD-001` in `.specs/project/STATE.md`: always suggest commit text at task close
+  - `AD-002` in `.specs/project/STATE.md`: validation docs must be operational scripts

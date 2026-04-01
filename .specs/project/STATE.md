@@ -1,7 +1,7 @@
 # State
 
-**Last Updated:** 2026-04-01T18:58:00-03:00
-**Current Work:** PictView WIC backend implementation with bootable local `Release_x86` and `Release_x64` app trees in `.localbuild`; next work is manual feature smoke inside the running app, thumbnail/performance verification, and residual TIFF/page-flow polish
+**Last Updated:** 2026-04-01T19:18:00-03:00
+**Current Work:** PictView WIC backend implementation is paused awaiting manual smoke in `Release_x64`; next work is to execute `.specs/features/pictview-engine-replacement/validation.md`, collect failures if any, and close the feature or fix residual TIFF/thumbnail/performance issues
 
 ---
 
@@ -13,6 +13,13 @@
 **Reason:** The user explicitly asked for this behavior to be persistent across future tasks.
 **Trade-off:** Final responses may become slightly longer even for small changes.
 **Impact:** Task close-outs should include a concise proposed commit message unless the user asks otherwise.
+
+### AD-002: Manual validation docs must be operational scripts, not ambiguous checklists (2026-04-01)
+
+**Decision:** Validation guides, smoke checklists, and `validation.md` artifacts must be written as executable step-by-step instructions whenever the user is expected to act in the UI or runtime.
+**Reason:** The user explicitly asked to avoid vague validation lists that force extra time searching for commands such as rotate, EXIF, or Save As.
+**Trade-off:** Validation artifacts become longer, but they are faster to execute and less error-prone.
+**Impact:** Future validation docs should include the command path or shortcut, the concrete steps, and the expected result or failure signal.
 
 ---
 
