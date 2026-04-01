@@ -35,6 +35,16 @@ struct COpenImageBackendHandle
     BOOL BitmapSource;
 };
 
+struct COpenImageSurface
+{
+    DWORD Width;
+    DWORD Height;
+    DWORD BytesPerLine;
+    DWORD BytesPerPixel;
+    BYTE* Pixels;
+    BYTE** Lines;
+};
+
 static PVCODE WINAPI PVReadImage2Open(LPPVHandle Img, HDC PaintDC, RECT* pDRect, TProgressProc Progress, void* AppSpecific, int ImageIndex);
 static PVCODE WINAPI PVCloseImageOpen(LPPVHandle Img);
 static PVCODE WINAPI PVDrawImageOpen(LPPVHandle Img, HDC PaintDC, int X, int Y, LPRECT rect);
@@ -69,6 +79,17 @@ static PVCODE AllocateDecodedSurface(COpenImageBackendHandle* pHandle, DWORD wid
 static COpenImageBackendHandle* GetOpenImageBackendHandle(LPPVHandle Img);
 static PVCODE EnsureDecodedFrame(COpenImageBackendHandle* pHandle, DWORD imageIndex);
 static PVCODE RotateDecodedImage(COpenImageBackendHandle* pHandle, BOOL clockwise);
+static void InitSurface(COpenImageSurface* pSurface);
+static void ReleaseSurface(COpenImageSurface* pSurface);
+static PVCODE AllocateSurface(COpenImageSurface* pSurface, DWORD width, DWORD height, DWORD bytesPerPixel);
+static void CopyPixelToSurface(const COpenImageSurface* pSrc, DWORD srcX, DWORD srcY, COpenImageSurface* pDst, DWORD dstX, DWORD dstY);
+static PVCODE CreateTransformedSurface(const COpenImageSurface* pSrc, const LPPVSaveImageInfo pSii, COpenImageSurface* pDst, DWORD bytesPerPixel);
+static PVCODE CreateSurfaceFromHandle(COpenImageBackendHandle* pHandle, COpenImageSurface* pSurface, DWORD bytesPerPixel);
+static PVCODE ApplySurfaceToHandle(COpenImageBackendHandle* pHandle, const COpenImageSurface* pSurface);
+static BOOL IsOutputFormatSupported(int fmt, int colors, int colorModel, BOOL userDefinedOutput);
+static REFGUID GetEncoderContainerFormat(int fmt);
+static PVCODE SaveSurfaceToRawOutput(const COpenImageSurface* pSurface, const LPPVSaveImageInfo pSii, TProgressProc Progress, void* AppSpecific);
+static PVCODE SaveSurfaceToWicFile(const COpenImageSurface* pSurface, const char* fileName, int fmt, TProgressProc Progress, void* AppSpecific);
 
 template <class T>
 static void SafeRelease(T*& pObject)
@@ -458,6 +479,348 @@ static PVCODE AllocateDecodedSurface(COpenImageBackendHandle* pHandle, DWORD wid
     }
     pHandle->Decoded = TRUE;
     return PVC_OK;
+}
+
+static void InitSurface(COpenImageSurface* pSurface)
+{
+    if (pSurface != NULL)
+        memset(pSurface, 0, sizeof(*pSurface));
+}
+
+static void ReleaseSurface(COpenImageSurface* pSurface)
+{
+    if (pSurface == NULL)
+        return;
+
+    if (pSurface->Lines != NULL)
+    {
+        free(pSurface->Lines);
+        pSurface->Lines = NULL;
+    }
+    if (pSurface->Pixels != NULL)
+    {
+        free(pSurface->Pixels);
+        pSurface->Pixels = NULL;
+    }
+    pSurface->Width = 0;
+    pSurface->Height = 0;
+    pSurface->BytesPerLine = 0;
+    pSurface->BytesPerPixel = 0;
+}
+
+static PVCODE AllocateSurface(COpenImageSurface* pSurface, DWORD width, DWORD height, DWORD bytesPerPixel)
+{
+    DWORD y;
+
+    if (pSurface == NULL || width == 0 || height == 0 || (bytesPerPixel != 3 && bytesPerPixel != 4))
+        return PVC_INVALID_DIMENSIONS;
+
+    ReleaseSurface(pSurface);
+    pSurface->BytesPerLine = ((width * bytesPerPixel) + 3) & ~3;
+    pSurface->Pixels = (BYTE*)malloc(pSurface->BytesPerLine * height);
+    if (pSurface->Pixels == NULL)
+        return PVC_OUT_OF_MEMORY;
+    pSurface->Lines = (BYTE**)malloc(sizeof(BYTE*) * height);
+    if (pSurface->Lines == NULL)
+    {
+        free(pSurface->Pixels);
+        pSurface->Pixels = NULL;
+        return PVC_OUT_OF_MEMORY;
+    }
+
+    for (y = 0; y < height; y++)
+        pSurface->Lines[y] = pSurface->Pixels + y * pSurface->BytesPerLine;
+    memset(pSurface->Pixels, 0, pSurface->BytesPerLine * height);
+    pSurface->Width = width;
+    pSurface->Height = height;
+    pSurface->BytesPerPixel = bytesPerPixel;
+    return PVC_OK;
+}
+
+static void CopyPixelToSurface(const COpenImageSurface* pSrc, DWORD srcX, DWORD srcY, COpenImageSurface* pDst, DWORD dstX, DWORD dstY)
+{
+    BYTE* pSrcPixel;
+    BYTE* pDstPixel;
+
+    pSrcPixel = pSrc->Lines[srcY] + srcX * pSrc->BytesPerPixel;
+    pDstPixel = pDst->Lines[dstY] + dstX * pDst->BytesPerPixel;
+    pDstPixel[0] = pSrcPixel[0];
+    pDstPixel[1] = pSrcPixel[1];
+    pDstPixel[2] = pSrcPixel[2];
+    if (pDst->BytesPerPixel == 4)
+        pDstPixel[3] = pSrc->BytesPerPixel == 4 ? pSrcPixel[3] : 0;
+}
+
+static PVCODE CreateSurfaceFromHandle(COpenImageBackendHandle* pHandle, COpenImageSurface* pSurface, DWORD bytesPerPixel)
+{
+    DWORD x;
+    DWORD y;
+    PVCODE ret;
+
+    if (pHandle == NULL || pSurface == NULL || !pHandle->Decoded)
+        return PVC_INVALID_HANDLE;
+
+    InitSurface(pSurface);
+    ret = AllocateSurface(pSurface, pHandle->ImageInfo.Width, pHandle->ImageInfo.Height, bytesPerPixel);
+    if (ret != PVC_OK)
+        return ret;
+
+    for (y = 0; y < pSurface->Height; y++)
+    {
+        BYTE* pSrcLine = pHandle->Lines[y];
+        BYTE* pDstLine = pSurface->Lines[y];
+
+        if (bytesPerPixel == 3)
+        {
+            memcpy(pDstLine, pSrcLine, pHandle->ImageInfo.Width * 3);
+        }
+        else
+        {
+            for (x = 0; x < pHandle->ImageInfo.Width; x++)
+            {
+                pDstLine[x * 4] = pSrcLine[x * 3];
+                pDstLine[x * 4 + 1] = pSrcLine[x * 3 + 1];
+                pDstLine[x * 4 + 2] = pSrcLine[x * 3 + 2];
+                pDstLine[x * 4 + 3] = 0;
+            }
+        }
+    }
+    return PVC_OK;
+}
+
+static PVCODE CreateTransformedSurface(const COpenImageSurface* pSrc, const LPPVSaveImageInfo pSii, COpenImageSurface* pDst, DWORD bytesPerPixel)
+{
+    DWORD cropLeft = 0;
+    DWORD cropTop = 0;
+    DWORD cropWidth;
+    DWORD cropHeight;
+    DWORD rotatedWidth;
+    DWORD rotatedHeight;
+    DWORD outWidth;
+    DWORD outHeight;
+    DWORD x;
+    DWORD y;
+    BOOL flipHor;
+    BOOL flipVert;
+    BOOL rotate90;
+    PVCODE ret;
+
+    if (pSrc == NULL || pDst == NULL)
+        return PVC_INVALID_HANDLE;
+
+    cropWidth = pSrc->Width;
+    cropHeight = pSrc->Height;
+    flipHor = pSii != NULL && (pSii->Flags & PVSF_FLIP_HOR);
+    flipVert = pSii != NULL && (pSii->Flags & PVSF_FLIP_VERT);
+    rotate90 = pSii != NULL && (pSii->Flags & PVSF_ROTATE90);
+
+    if (pSii != NULL && pSii->CropWidth != 0 && pSii->CropHeight != 0)
+    {
+        if (pSii->CropLeft >= pSrc->Width || pSii->CropTop >= pSrc->Height)
+            return PVC_INVALID_DIMENSIONS;
+        if (pSii->CropLeft + pSii->CropWidth > pSrc->Width || pSii->CropTop + pSii->CropHeight > pSrc->Height)
+            return PVC_INVALID_DIMENSIONS;
+
+        cropLeft = pSii->CropLeft;
+        cropTop = pSii->CropTop;
+        cropWidth = pSii->CropWidth;
+        cropHeight = pSii->CropHeight;
+    }
+
+    rotatedWidth = rotate90 ? cropHeight : cropWidth;
+    rotatedHeight = rotate90 ? cropWidth : cropHeight;
+    outWidth = (pSii != NULL && pSii->Width != 0) ? pSii->Width : rotatedWidth;
+    outHeight = (pSii != NULL && pSii->Height != 0) ? pSii->Height : rotatedHeight;
+    if (outWidth == 0 || outHeight == 0)
+        return PVC_INVALID_DIMENSIONS;
+
+    InitSurface(pDst);
+    ret = AllocateSurface(pDst, outWidth, outHeight, bytesPerPixel);
+    if (ret != PVC_OK)
+        return ret;
+
+    for (y = 0; y < outHeight; y++)
+    {
+        DWORD rotatedY = (y * rotatedHeight) / outHeight;
+
+        for (x = 0; x < outWidth; x++)
+        {
+            DWORD rotatedX = (x * rotatedWidth) / outWidth;
+            DWORD croppedX;
+            DWORD croppedY;
+            DWORD srcX;
+            DWORD srcY;
+
+            if (rotate90)
+            {
+                croppedX = rotatedY;
+                croppedY = cropHeight - 1 - rotatedX;
+            }
+            else
+            {
+                croppedX = rotatedX;
+                croppedY = rotatedY;
+            }
+
+            srcX = cropLeft + croppedX;
+            srcY = cropTop + croppedY;
+            if (flipHor)
+                srcX = pSrc->Width - 1 - srcX;
+            if (flipVert)
+                srcY = pSrc->Height - 1 - srcY;
+            CopyPixelToSurface(pSrc, srcX, srcY, pDst, x, y);
+        }
+    }
+    return PVC_OK;
+}
+
+static PVCODE ApplySurfaceToHandle(COpenImageBackendHandle* pHandle, const COpenImageSurface* pSurface)
+{
+    LONG oldStretchWidth;
+    LONG oldStretchHeight;
+    int signX;
+    int signY;
+    PVCODE ret;
+    DWORD y;
+
+    if (pHandle == NULL || pSurface == NULL || pSurface->BytesPerPixel != 3)
+        return PVC_INVALID_HANDLE;
+
+    oldStretchWidth = pHandle->StretchWidth;
+    oldStretchHeight = pHandle->StretchHeight;
+    signX = oldStretchWidth < 0 ? -1 : 1;
+    signY = oldStretchHeight < 0 ? -1 : 1;
+
+    ret = AllocateDecodedSurface(pHandle, pSurface->Width, pSurface->Height);
+    if (ret != PVC_OK)
+        return ret;
+
+    for (y = 0; y < pSurface->Height; y++)
+        memcpy(pHandle->Lines[y], pSurface->Lines[y], pSurface->Width * 3);
+
+    pHandle->StretchWidth = signX * (LONG)pSurface->Width;
+    pHandle->StretchHeight = signY * (LONG)pSurface->Height;
+    pHandle->ImageInfo.StretchedWidth = labs(pHandle->StretchWidth);
+    pHandle->ImageInfo.StretchedHeight = labs(pHandle->StretchHeight);
+    pHandle->ImageInfo.CurrentImage = pHandle->DecodedFrameIndex;
+    return PVC_OK;
+}
+
+static BOOL IsOutputFormatSupported(int fmt, int colors, int colorModel, BOOL userDefinedOutput)
+{
+    if (userDefinedOutput)
+        return fmt == PVF_RAW && (colors == PV_COLOR_TC32 || colors == PV_COLOR_TC24) && colorModel == PVCM_RGB;
+
+    if (colorModel != PVCM_RGB)
+        return FALSE;
+
+    switch (fmt)
+    {
+    case PVF_BMP:
+    case PVF_JPG:
+    case PVF_PNG:
+    case PVF_TIFF:
+        return colors == PV_COLOR_TC24 || colors == PV_COLOR_TC32;
+
+    default:
+        return FALSE;
+    }
+}
+
+static REFGUID GetEncoderContainerFormat(int fmt)
+{
+    switch (fmt)
+    {
+    case PVF_BMP:
+        return GUID_ContainerFormatBmp;
+
+    case PVF_JPG:
+        return GUID_ContainerFormatJpeg;
+
+    case PVF_PNG:
+        return GUID_ContainerFormatPng;
+
+    case PVF_TIFF:
+        return GUID_ContainerFormatTiff;
+
+    default:
+        return GUID_NULL;
+    }
+}
+
+static PVCODE SaveSurfaceToRawOutput(const COpenImageSurface* pSurface, const LPPVSaveImageInfo pSii, TProgressProc Progress, void* AppSpecific)
+{
+    DWORD written;
+    DWORD totalSize;
+
+    if (pSurface == NULL || pSii == NULL || pSii->WriteFunc == NULL)
+        return PVC_INVALID_HANDLE;
+
+    totalSize = pSurface->BytesPerLine * pSurface->Height;
+    written = pSii->WriteFunc(AppSpecific, pSurface->Pixels, totalSize);
+    if (Progress != NULL)
+        Progress(100, AppSpecific);
+    return written == totalSize ? PVC_OK : PVC_WRITING_ERROR;
+}
+
+static PVCODE SaveSurfaceToWicFile(const COpenImageSurface* pSurface, const char* fileName, int fmt, TProgressProc Progress, void* AppSpecific)
+{
+    CCoInitScope coInit;
+    IWICImagingFactory* pFactory = NULL;
+    IWICStream* pStream = NULL;
+    IWICBitmapEncoder* pEncoder = NULL;
+    IWICBitmapFrameEncode* pFrameEncode = NULL;
+    IPropertyBag2* pPropertyBag = NULL;
+    WCHAR fileNameW[MAX_PATH];
+    GUID pixelFormat = GUID_WICPixelFormat24bppBGR;
+    HRESULT hr;
+    PVCODE ret;
+
+    if (pSurface == NULL || fileName == NULL || *fileName == 0)
+        return PVC_CANNOT_OPEN_FILE;
+    if (FAILED(coInit.Hr))
+        return HrToPVCode(coInit.Hr);
+    if (0 == MultiByteToWideChar(CP_ACP, 0, fileName, -1, fileNameW, SizeOf(fileNameW)))
+        return PVC_CANNOT_OPEN_FILE;
+
+    hr = CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
+                          IID_IWICImagingFactory, (void**)&pFactory);
+    if (SUCCEEDED(hr))
+        hr = pFactory->CreateStream(&pStream);
+    if (SUCCEEDED(hr))
+        hr = pStream->InitializeFromFilename(fileNameW, GENERIC_WRITE);
+    if (SUCCEEDED(hr))
+        hr = pFactory->CreateEncoder(GetEncoderContainerFormat(fmt), NULL, &pEncoder);
+    if (SUCCEEDED(hr))
+        hr = pEncoder->Initialize(pStream, WICBitmapEncoderNoCache);
+    if (SUCCEEDED(hr))
+        hr = pEncoder->CreateNewFrame(&pFrameEncode, &pPropertyBag);
+    if (SUCCEEDED(hr))
+        hr = pFrameEncode->Initialize(pPropertyBag);
+    if (SUCCEEDED(hr))
+        hr = pFrameEncode->SetSize(pSurface->Width, pSurface->Height);
+    if (SUCCEEDED(hr))
+        hr = pFrameEncode->SetPixelFormat(&pixelFormat);
+    if (SUCCEEDED(hr) && !IsEqualGUID(pixelFormat, GUID_WICPixelFormat24bppBGR))
+        hr = WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT;
+    if (SUCCEEDED(hr))
+        hr = pFrameEncode->WritePixels(pSurface->Height, pSurface->BytesPerLine,
+                                       pSurface->BytesPerLine * pSurface->Height, pSurface->Pixels);
+    if (SUCCEEDED(hr))
+        hr = pFrameEncode->Commit();
+    if (SUCCEEDED(hr))
+        hr = pEncoder->Commit();
+
+    if (Progress != NULL)
+        Progress(100, AppSpecific);
+
+    ret = HrToPVCode(hr);
+    SafeRelease(pPropertyBag);
+    SafeRelease(pFrameEncode);
+    SafeRelease(pEncoder);
+    SafeRelease(pStream);
+    SafeRelease(pFactory);
+    return ret == PVC_READING_ERROR ? PVC_WRITING_ERROR : ret;
 }
 
 static PVCODE DecodeFrameFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex)
@@ -982,7 +1345,45 @@ static PVCODE WINAPI PVGetHandles2Open(LPPVHandle Img, LPPVImageHandles* pHandle
 
 static PVCODE WINAPI PVSaveImageOpen(LPPVHandle Img, const char* OutFName, LPPVSaveImageInfo pSii, TProgressProc Progress, void* AppSpecific, int ImageIndex)
 {
-    return PVC_WRITING_ERROR;
+    COpenImageBackendHandle* pHandle = GetOpenImageBackendHandle(Img);
+    COpenImageSurface sourceSurface;
+    COpenImageSurface outputSurface;
+    PVCODE ret;
+    DWORD bytesPerPixel;
+    BOOL userDefinedOutput;
+
+    if (pHandle == NULL || pSii == NULL)
+        return PVC_INVALID_HANDLE;
+
+    userDefinedOutput = (pSii->Flags & PVSF_USERDEFINED_OUTPUT) != 0;
+    if (!IsOutputFormatSupported(pSii->Format, pSii->Colors, pSii->ColorModel, userDefinedOutput))
+        return PVC_UNSUP_OUT_PARAMS;
+
+    if (!userDefinedOutput && (OutFName == NULL || *OutFName == 0))
+        return PVC_ERROR_CREATING_FILE;
+
+    ret = EnsureDecodedFrame(pHandle, ImageIndex < 0 ? pHandle->ImageInfo.CurrentImage : (DWORD)ImageIndex);
+    if (ret != PVC_OK)
+        return ret;
+
+    InitSurface(&sourceSurface);
+    InitSurface(&outputSurface);
+
+    bytesPerPixel = userDefinedOutput && pSii->Colors == PV_COLOR_TC32 ? 4 : 3;
+    ret = CreateSurfaceFromHandle(pHandle, &sourceSurface, 3);
+    if (ret == PVC_OK)
+        ret = CreateTransformedSurface(&sourceSurface, pSii, &outputSurface, bytesPerPixel);
+    if (ret == PVC_OK)
+    {
+        if (userDefinedOutput)
+            ret = SaveSurfaceToRawOutput(&outputSurface, pSii, Progress, AppSpecific);
+        else
+            ret = SaveSurfaceToWicFile(&outputSurface, OutFName, pSii->Format, Progress, AppSpecific);
+    }
+
+    ReleaseSurface(&outputSurface);
+    ReleaseSurface(&sourceSurface);
+    return ret;
 }
 
 static PVCODE WINAPI PVChangeImageOpen(LPPVHandle Img, DWORD Flags)
@@ -1012,7 +1413,9 @@ static PVCODE WINAPI PVChangeImageOpen(LPPVHandle Img, DWORD Flags)
 
 static DWORD WINAPI PVIsOutCombSupportedOpen(int Fmt, int Compr, int Colors, int ColorModel)
 {
-    return (DWORD)-1;
+    BOOL userDefinedOutput = Fmt == PVF_RAW;
+
+    return IsOutputFormatSupported(Fmt, Colors, ColorModel, userDefinedOutput) ? PVCS_DEFAULT : (DWORD)-1;
 }
 
 static PVCODE WINAPI PVReadImageSequenceOpen(LPPVHandle Img, LPPVImageSequence* ppSeq)
@@ -1024,5 +1427,34 @@ static PVCODE WINAPI PVReadImageSequenceOpen(LPPVHandle Img, LPPVImageSequence* 
 
 static PVCODE WINAPI PVCropImageOpen(LPPVHandle Img, int Left, int Top, int Width, int Height)
 {
-    return PVC_INVALID_HANDLE;
+    COpenImageBackendHandle* pHandle = GetOpenImageBackendHandle(Img);
+    COpenImageSurface sourceSurface;
+    COpenImageSurface croppedSurface;
+    PVSaveImageInfo sii;
+    PVCODE ret;
+
+    if (pHandle == NULL || Left < 0 || Top < 0 || Width <= 0 || Height <= 0)
+        return PVC_INVALID_HANDLE;
+
+    ret = EnsureDecodedFrame(pHandle, pHandle->ImageInfo.CurrentImage);
+    if (ret != PVC_OK)
+        return ret;
+
+    memset(&sii, 0, sizeof(sii));
+    sii.CropLeft = Left;
+    sii.CropTop = Top;
+    sii.CropWidth = Width;
+    sii.CropHeight = Height;
+
+    InitSurface(&sourceSurface);
+    InitSurface(&croppedSurface);
+    ret = CreateSurfaceFromHandle(pHandle, &sourceSurface, 3);
+    if (ret == PVC_OK)
+        ret = CreateTransformedSurface(&sourceSurface, &sii, &croppedSurface, 3);
+    if (ret == PVC_OK)
+        ret = ApplySurfaceToHandle(pHandle, &croppedSurface);
+
+    ReleaseSurface(&croppedSurface);
+    ReleaseSurface(&sourceSurface);
+    return ret;
 }

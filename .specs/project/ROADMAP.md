@@ -37,6 +37,7 @@
   - dependência obrigatória de `PVW32Cnv.lib` e do envelope x64 removida do build principal do plugin
   - backend WIC inicial implementado para abrir e renderizar imagens estáticas em `24bpp BGR` com `PVImageInfo`/`PVImageHandles` compatíveis
   - suporte inicial para abrir por arquivo, `HBITMAP` anexado, clipboard bitmap e rotação de 90 graus em memória
+  - suporte inicial de transform/salvamento adicionado para crop em memória, `Save As` WIC para BMP/JPEG/PNG/TIFF e saída `RAW` por callback para preview/thumbnail flow
   - validação por build `Debug|Win32` e `Debug|x64`
 
 ## In Progress

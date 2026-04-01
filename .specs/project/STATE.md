@@ -1,7 +1,7 @@
 # State
 
-**Last Updated:** 2026-04-01T17:38:00-03:00
-**Current Work:** PictView WIC backend implementation for the first functional open/decode/render slice
+**Last Updated:** 2026-04-01T18:00:00-03:00
+**Current Work:** PictView WIC backend implementation for transform/save integration on top of the first functional open/decode/render slice
 
 ---
 
@@ -27,6 +27,10 @@ None recorded.
 ### LL-001: PictView WIC integration must undefine the historical `INT32` / `UINT32` macros locally before including `wincodec.h`
 
 The plugin precompiled header defines compatibility macros for `INT32` and `UINT32`, which collide with modern Windows SDK declarations pulled by WIC headers.
+
+### LL-002: `PVSaveImage` is the shared seam for Save As, print preview, and thumbnail generation
+
+Restoring `PVSaveImage` even for a limited static-image slice unlocks multiple existing flows at once because the plugin routes file save, raw preview buffers, and thumbnail export through the same contract.
 
 ---
 
