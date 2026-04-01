@@ -1,7 +1,7 @@
 # State
 
-**Last Updated:** 2026-04-01T17:18:53.5526274-03:00
-**Current Work:** PictView engine replacement task breakdown and repository workflow preferences
+**Last Updated:** 2026-04-01T17:38:00-03:00
+**Current Work:** PictView WIC backend implementation for the first functional open/decode/render slice
 
 ---
 
@@ -24,7 +24,9 @@ None recorded.
 
 ## Lessons Learned
 
-None recorded.
+### LL-001: PictView WIC integration must undefine the historical `INT32` / `UINT32` macros locally before including `wincodec.h`
+
+The plugin precompiled header defines compatibility macros for `INT32` and `UINT32`, which collide with modern Windows SDK declarations pulled by WIC headers.
 
 ---
 

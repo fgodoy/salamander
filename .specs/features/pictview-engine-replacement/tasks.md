@@ -1,7 +1,7 @@
 # PictView Engine Replacement Tasks
 
 **Design**: `.specs/features/pictview-engine-replacement/design.md`
-**Status**: Draft
+**Status**: In Progress
 
 ---
 
@@ -53,9 +53,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] Backend-facing interface types exist for open, decode, draw, transform, save, and metadata operations
-- [ ] The new types isolate WIC/COM details from the rest of the plugin
-- [ ] The contract is narrow enough to replace current `PVW32DLL` calls incrementally
+- [x] Backend-facing interface types exist for open, decode, draw, transform, save, and metadata operations
+- [x] The new types isolate WIC/COM details from the rest of the plugin
+- [x] The contract is narrow enough to replace current `PVW32DLL` calls incrementally
 
 **Verify**:
 
@@ -77,9 +77,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] Open builds no longer require `LoadLibrary("PVW32Cnv.dll")` for the main path
-- [ ] Existing startup error handling remains coherent
-- [ ] The plugin initializes the new backend through the current seam
+- [x] Open builds no longer require `LoadLibrary("PVW32Cnv.dll")` for the main path
+- [x] Existing startup error handling remains coherent
+- [x] The plugin initializes the new backend through the current seam
 
 **Verify**:
 
@@ -102,9 +102,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] The repository can build the PictView project without proprietary `.lib` artifacts
-- [ ] x64 no longer depends on the 32-bit envelope for the open backend path
-- [ ] Legacy envelope code is either bypassed or clearly isolated from the MVP build
+- [x] The repository can build the PictView project without proprietary `.lib` artifacts
+- [x] x64 no longer depends on the 32-bit envelope for the open backend path
+- [x] Legacy envelope code is either bypassed or clearly isolated from the MVP build
 
 **Verify**:
 

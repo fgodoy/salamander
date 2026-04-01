@@ -30,13 +30,22 @@
   - desenho default de item selecionado do `TreeView` neutralizado para não reaplicar o azul clássico do controle sobre o highlight do painel
   - validação por build `Debug|Win32`
 
+### 2026-04-01
+
+- PictView Open-Backend Foundation
+  - bootstrap do plugin movido para um backend local open-source em vez de `PVW32Cnv.dll`
+  - dependência obrigatória de `PVW32Cnv.lib` e do envelope x64 removida do build principal do plugin
+  - backend WIC inicial implementado para abrir e renderizar imagens estáticas em `24bpp BGR` com `PVImageInfo`/`PVImageHandles` compatíveis
+  - suporte inicial para abrir por arquivo, `HBITMAP` anexado, clipboard bitmap e rotação de 90 graus em memória
+  - validação por build `Debug|Win32` e `Debug|x64`
+
 ## In Progress
 
 - Manual smoke and follow-up polish for recent UI changes
 - UI modernization discovery and path selection
 - Manual smoke for TreeView rich file icons
 - Portuguese localization planning for distinct `pt-BR` and `pt-PT` support using the existing translation workflow
-- PictView engine replacement planning with WIC-first design and implementation task breakdown
+- PictView WIC backend completion for multi-frame formats, thumbnails, save-as, crop, and EXIF-aware behavior
 
 ## Backlog
 
