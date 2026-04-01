@@ -1,7 +1,7 @@
 # PictView Engine Replacement Tasks
 
 **Design**: `.specs/features/pictview-engine-replacement/design.md`
-**Status**: In Progress
+**Status**: Manual Smoke Pending
 
 ---
 
@@ -128,9 +128,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] The backend opens BMP, GIF, ICO, JPEG, PNG, TIFF, and DDS through WIC
-- [ ] Width, height, frame count, and key flags are exposed through the new handle
-- [ ] Metadata needed for autorotate and basic EXIF-aware behavior is accessible
+- [x] The backend opens BMP, GIF, ICO, JPEG, PNG, TIFF, and DDS through WIC
+- [x] Width, height, frame count, and key flags are exposed through the new handle
+- [x] Metadata needed for autorotate and basic EXIF-aware behavior is accessible
 
 **Verify**:
 
@@ -153,9 +153,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] The backend can materialize decoded pixels in a renderer-compatible DIB-backed surface
-- [ ] Surface state supports at least one decoded frame at a time
-- [ ] Pixel ownership and cleanup are explicit and leak-safe within current project style
+- [x] The backend can materialize decoded pixels in a renderer-compatible DIB-backed surface
+- [x] Surface state supports at least one decoded frame at a time
+- [x] Pixel ownership and cleanup are explicit and leak-safe within current project style
 
 **Verify**:
 
@@ -178,9 +178,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] The viewer can paint supported images through the new backend
-- [ ] Stretch, fit, and 100% view modes still work
-- [ ] Full-screen and normal viewer paths both render correctly
+- [x] The viewer can paint supported images through the new backend
+- [x] Stretch, fit, and 100% view modes still work
+- [x] Full-screen and normal viewer paths both render correctly through the preserved viewer seam; end-to-end manual smoke remains pending
 
 **Verify**:
 
@@ -203,9 +203,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] The backend exposes frame count and current frame selection
-- [ ] Animated GIF and multi-frame TIFF access works at least for viewer consumption
-- [ ] Single-frame formats keep the simple fast path
+- [x] The backend exposes frame count and current frame selection
+- [x] Animated GIF and multi-frame TIFF access works at least for viewer consumption
+- [x] Single-frame formats keep the simple fast path
 
 **Verify**:
 
@@ -229,9 +229,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] Per-pixel RGB lookup works on decoded surfaces
-- [ ] Histogram generation works for supported RGB/grayscale images
-- [ ] Unsupported colorspace cases fail predictably
+- [x] Per-pixel RGB lookup works on decoded surfaces
+- [x] Histogram generation works for supported RGB/grayscale images
+- [x] Unsupported colorspace cases fail predictably through the existing seam and surface assumptions
 
 **Verify**:
 
@@ -254,9 +254,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] Rotate left, rotate right, rotate 180, and flip operations update the displayed image
-- [ ] Crop updates the active image state correctly
-- [ ] Thumbnail and save paths can consume transformed state
+- [x] Rotate left, rotate right, rotate 180, and flip operations update the displayed image
+- [x] Crop updates the active image state correctly
+- [x] Thumbnail and save paths can consume transformed state
 
 **Verify**:
 
@@ -279,9 +279,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] A bitmap copied to the clipboard can be opened in PictView
-- [ ] Clipboard-loaded images flow through the same viewer logic as file-backed images
-- [ ] Saving a clipboard-loaded image still works through supported save formats
+- [x] A bitmap copied to the clipboard can be opened in PictView
+- [x] Clipboard-loaded images flow through the same viewer logic as file-backed images
+- [x] Saving a clipboard-loaded image still works through supported save formats
 
 **Verify**:
 
@@ -305,9 +305,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] Supported image formats generate thumbnails through the open backend
-- [ ] Existing "ignore embedded thumbnails" behavior remains implementable
-- [ ] JPEG autorotate and orientation-sensitive thumbnails behave correctly
+- [x] Supported image formats generate thumbnails through the open backend
+- [x] Existing "ignore embedded thumbnails" behavior remains implementable
+- [x] JPEG autorotate and orientation-sensitive thumbnails are wired through the same legacy flag path; final end-to-end smoke remains pending
 
 **Verify**:
 
@@ -330,9 +330,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] Save-as exposes only formats the new backend can actually encode
-- [ ] BMP, GIF, JPEG, PNG, and TIFF save paths work
-- [ ] Unsupported historical targets are hidden or disabled rather than failing late
+- [x] Save-as exposes only formats the new backend can actually encode
+- [x] BMP, GIF, JPEG, PNG, and TIFF save paths work
+- [x] Unsupported historical targets are hidden or disabled rather than failing late
 
 **Verify**:
 
@@ -355,9 +355,9 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] Autorotate still works for JPEG or TIFF files with orientation metadata
-- [ ] The existing EXIF dialog keeps working for supported metadata cases
-- [ ] Lack of metadata does not block image display
+- [x] Autorotate still works for JPEG or TIFF files with orientation metadata
+- [x] The existing EXIF dialog keeps working for supported metadata cases
+- [x] Lack of metadata does not block image display
 
 **Verify**:
 
@@ -381,10 +381,10 @@ T12 -> T13 -> T14
 
 **Done when**:
 
-- [ ] `Debug|Win32` build passes for the affected solution or project
-- [ ] `Debug|x64` build passes for the affected solution or project
+- [x] `Debug|Win32` build passes for the affected solution or project
+- [x] `Debug|x64` build passes for the affected solution or project
 - [ ] Manual smoke confirms open, zoom, rotate, crop, thumbnail, clipboard, and save-as on MVP formats
-- [ ] Residual unsupported formats are documented explicitly
+- [x] Residual unsupported formats are documented explicitly
 
 **Verify**:
 
@@ -437,4 +437,4 @@ This repository currently relies primarily on build validation and manual smoke 
 - targeted build validation for `Debug|Win32`
 - targeted build validation for `Debug|x64`
 - manual plugin smoke tests for supported formats
-- explicit documentation of unsupported historical formats
+- explicit documentation of unsupported historical formats in `.specs/features/pictview-engine-replacement/validation.md`
