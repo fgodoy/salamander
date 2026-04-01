@@ -61,6 +61,8 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 - 2026-03-28: Portuguese localization feature specified to add distinct `pt-BR` and `pt-PT` support on top of the existing `.slt` / `.slg` translation workflow and current `LANGID`-based locale preference behavior
 - 2026-03-28: Portuguese localization design completed with a reuse-first approach centered on variant-specific `LANGID` metadata, locale-coded `pt-br` / `pt-pt` asset lines, main-app-first rollout, and minimal expected runtime code changes
 - 2026-03-28: Portuguese localization tasks prepared with a phased rollout centered on main-app Portuguese assets first, runtime locale-selection validation, optional selector hardening only if needed, and follow-up plugin and packaging extension slices
+- 2026-04-01: PictView engine replacement feature was specified and designed around a WIC-first backend that preserves the current engine seam, restores an open build path, and leaves room for optional long-tail format fallback
+- 2026-04-01: PictView engine replacement tasks were prepared with phased work for backend seam creation, open-build bootstrap, WIC decode/render/save support, EXIF-aware behavior, thumbnails, clipboard flow, and Win32/x64 validation
 
 ### Contributing
 
