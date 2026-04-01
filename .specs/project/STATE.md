@@ -1,7 +1,7 @@
 # State
 
-**Last Updated:** 2026-04-01T18:00:00-03:00
-**Current Work:** PictView WIC backend implementation for transform/save integration on top of the first functional open/decode/render slice
+**Last Updated:** 2026-04-01T18:16:00-03:00
+**Current Work:** PictView WIC backend implementation after animated GIF sequence support and GIF-capable WIC save-path negotiation, with manual smoke and EXIF-aware follow-up still pending
 
 ---
 
@@ -31,6 +31,10 @@ The plugin precompiled header defines compatibility macros for `INT32` and `UINT
 ### LL-002: `PVSaveImage` is the shared seam for Save As, print preview, and thumbnail generation
 
 Restoring `PVSaveImage` even for a limited static-image slice unlocks multiple existing flows at once because the plugin routes file save, raw preview buffers, and thumbnail export through the same contract.
+
+### LL-003: WIC encoder support must be treated as negotiated output, not a fixed `24bpp BGR` contract
+
+`IWICBitmapFrameEncode::SetPixelFormat` may return a different format than requested. The open backend now has to convert the in-memory surface to the encoder-accepted format before writing, which is what makes `GIF` save viable through the same WIC save seam.
 
 ---
 

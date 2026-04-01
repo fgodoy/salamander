@@ -38,6 +38,8 @@
   - backend WIC inicial implementado para abrir e renderizar imagens estáticas em `24bpp BGR` com `PVImageInfo`/`PVImageHandles` compatíveis
   - suporte inicial para abrir por arquivo, `HBITMAP` anexado, clipboard bitmap e rotação de 90 graus em memória
   - suporte inicial de transform/salvamento adicionado para crop em memória, `Save As` WIC para BMP/JPEG/PNG/TIFF e saída `RAW` por callback para preview/thumbnail flow
+  - suporte inicial para GIF animado adicionado via `PVImageSequence` com composição de frames e leitura de metadata nativa do WIC
+  - pipeline de `Save As` do backend open ajustado para negociar o pixel format real do encoder WIC, destravando conversão interna para `GIF` além de BMP/JPEG/PNG/TIFF
   - validação por build `Debug|Win32` e `Debug|x64`
 
 ## In Progress
@@ -46,7 +48,7 @@
 - UI modernization discovery and path selection
 - Manual smoke for TreeView rich file icons
 - Portuguese localization planning for distinct `pt-BR` and `pt-PT` support using the existing translation workflow
-- PictView WIC backend completion for multi-frame formats, thumbnails, save-as, crop, and EXIF-aware behavior
+- PictView WIC backend completion for thumbnails, EXIF-aware behavior, manual smoke, and TIFF/page-flow polish
 
 ## Backlog
 

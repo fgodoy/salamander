@@ -31,8 +31,11 @@ struct COpenImageBackendHandle
     DWORD StretchMode;
     COLORREF BkColor;
     DWORD DecodedFrameIndex;
+    DWORD LogicalScreenWidth;
+    DWORD LogicalScreenHeight;
     BOOL Decoded;
     BOOL BitmapSource;
+    LPPVImageSequence Sequence;
 };
 
 struct COpenImageSurface
@@ -72,6 +75,8 @@ static PVCODE HrToPVCode(HRESULT hr);
 static DWORD MapContainerFormat(const GUID& formatGuid, const char** pFormatName);
 static DWORD MapCompression(DWORD format);
 static BOOL HasExifMetadata(IWICBitmapFrameDecode* pFrame, DWORD format);
+static BOOL GetMetadataValueUI2(IWICMetadataQueryReader* pReader, LPCWSTR pszQuery, WORD* pValue);
+static BOOL GetMetadataValueUI1(IWICMetadataQueryReader* pReader, LPCWSTR pszQuery, BYTE* pValue);
 static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex);
 static PVCODE DecodeFrameFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex);
 static PVCODE DecodeBitmapHandle(COpenImageBackendHandle* pHandle, HBITMAP hBitmap);
@@ -89,7 +94,16 @@ static PVCODE ApplySurfaceToHandle(COpenImageBackendHandle* pHandle, const COpen
 static BOOL IsOutputFormatSupported(int fmt, int colors, int colorModel, BOOL userDefinedOutput);
 static REFGUID GetEncoderContainerFormat(int fmt);
 static PVCODE SaveSurfaceToRawOutput(const COpenImageSurface* pSurface, const LPPVSaveImageInfo pSii, TProgressProc Progress, void* AppSpecific);
-static PVCODE SaveSurfaceToWicFile(const COpenImageSurface* pSurface, const char* fileName, int fmt, TProgressProc Progress, void* AppSpecific);
+static WICPixelFormatGUID GetSurfacePixelFormat(const COpenImageSurface* pSurface);
+static WICPixelFormatGUID GetEncoderPixelFormat(int fmt);
+static PVCODE CreateBitmapSourceFromSurface(IWICImagingFactory* pFactory, const COpenImageSurface* pSurface, IWICBitmapSource** ppBitmapSource);
+static PVCODE PrepareBitmapSourceForEncoder(IWICImagingFactory* pFactory, IWICBitmapSource* pSourceBitmap, WICPixelFormatGUID pixelFormat, IWICBitmapSource** ppWriteSource);
+static PVCODE SaveSurfaceToWicFile(const COpenImageSurface* pSurface, const char* fileName, const LPPVSaveImageInfo pSii, TProgressProc Progress, void* AppSpecific);
+static void ReleaseSequence(COpenImageBackendHandle* pHandle);
+static HBITMAP CreateBitmapFromSurface32(const COpenImageSurface* pSurface);
+static void FillSurfaceRect32(COpenImageSurface* pSurface, const RECT* pRect, COLORREF color);
+static void BlendSurface32(COpenImageSurface* pCanvas, const COpenImageSurface* pFrame, int left, int top);
+static PVCODE BuildGifSequence(COpenImageBackendHandle* pHandle);
 
 template <class T>
 static void SafeRelease(T*& pObject)
@@ -170,6 +184,8 @@ static void ResetHandleInfo(COpenImageBackendHandle* pHandle)
     pHandle->StretchMode = PV_STRETCH_NO;
     pHandle->BkColor = RGB(255, 255, 255);
     pHandle->DecodedFrameIndex = 0;
+    pHandle->LogicalScreenWidth = 0;
+    pHandle->LogicalScreenHeight = 0;
     pHandle->Decoded = FALSE;
 }
 
@@ -199,6 +215,7 @@ static void FreeOpenImageBackendHandle(COpenImageBackendHandle* pHandle)
     if (pHandle == NULL)
         return;
 
+    ReleaseSequence(pHandle);
     ReleaseDecodedSurface(pHandle);
     delete pHandle;
 }
@@ -339,12 +356,53 @@ static BOOL HasExifMetadata(IWICBitmapFrameDecode* pFrame, DWORD format)
     return hasExif;
 }
 
+static BOOL GetMetadataValueUI2(IWICMetadataQueryReader* pReader, LPCWSTR pszQuery, WORD* pValue)
+{
+    PROPVARIANT var;
+    HRESULT hr;
+    BOOL ok = FALSE;
+
+    if (pReader == NULL || pszQuery == NULL || pValue == NULL)
+        return FALSE;
+
+    PropVariantInit(&var);
+    hr = pReader->GetMetadataByName(pszQuery, &var);
+    if (SUCCEEDED(hr) && var.vt == VT_UI2)
+    {
+        *pValue = var.uiVal;
+        ok = TRUE;
+    }
+    PropVariantClear(&var);
+    return ok;
+}
+
+static BOOL GetMetadataValueUI1(IWICMetadataQueryReader* pReader, LPCWSTR pszQuery, BYTE* pValue)
+{
+    PROPVARIANT var;
+    HRESULT hr;
+    BOOL ok = FALSE;
+
+    if (pReader == NULL || pszQuery == NULL || pValue == NULL)
+        return FALSE;
+
+    PropVariantInit(&var);
+    hr = pReader->GetMetadataByName(pszQuery, &var);
+    if (SUCCEEDED(hr) && var.vt == VT_UI1)
+    {
+        *pValue = var.bVal;
+        ok = TRUE;
+    }
+    PropVariantClear(&var);
+    return ok;
+}
+
 static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex)
 {
     CCoInitScope coInit;
     IWICImagingFactory* pFactory = NULL;
     IWICBitmapDecoder* pDecoder = NULL;
     IWICBitmapFrameDecode* pFrame = NULL;
+    IWICMetadataQueryReader* pDecoderReader = NULL;
     WCHAR fileNameW[MAX_PATH];
     WIN32_FILE_ATTRIBUTE_DATA attrData;
     GUID containerFormat = GUID_NULL;
@@ -355,6 +413,8 @@ static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imag
     double dpiX = 0.0;
     double dpiY = 0.0;
     DWORD format = 0;
+    WORD logicalWidth = 0;
+    WORD logicalHeight = 0;
     HRESULT hr;
 
     if (pHandle == NULL || pHandle->BitmapSource || pHandle->FileName[0] == 0)
@@ -373,6 +433,8 @@ static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imag
                                                  WICDecodeMetadataCacheOnDemand, &pDecoder);
     if (SUCCEEDED(hr))
         hr = pDecoder->GetContainerFormat(&containerFormat);
+    if (SUCCEEDED(hr))
+        pDecoder->GetMetadataQueryReader(&pDecoderReader);
     if (SUCCEEDED(hr))
         hr = pDecoder->GetFrameCount(&frameCount);
     if (SUCCEEDED(hr) && imageIndex >= frameCount)
@@ -400,6 +462,7 @@ static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imag
         return PVC_UNSUP_FILE_TYPE;
     }
 
+    ReleaseSequence(pHandle);
     ReleaseDecodedSurface(pHandle);
     ResetHandleInfo(pHandle);
     pHandle->ImageInfo.Width = width;
@@ -419,6 +482,31 @@ static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imag
     lstrcpynA(pHandle->ImageInfo.Info1, formatName, SizeOf(pHandle->ImageInfo.Info1));
     lstrcpynA(pHandle->ImageInfo.Info2, "Open backend (WIC)", SizeOf(pHandle->ImageInfo.Info2));
 
+    if (format == PVF_GIF && pDecoderReader != NULL)
+    {
+        if (GetMetadataValueUI2(pDecoderReader, L"/logscrdesc/Width", &logicalWidth))
+            pHandle->LogicalScreenWidth = logicalWidth;
+        if (GetMetadataValueUI2(pDecoderReader, L"/logscrdesc/Height", &logicalHeight))
+            pHandle->LogicalScreenHeight = logicalHeight;
+        if (pHandle->LogicalScreenWidth != 0 && pHandle->LogicalScreenHeight != 0)
+        {
+            pHandle->FormatInfo.GIF.ScreenWidth = pHandle->LogicalScreenWidth;
+            pHandle->FormatInfo.GIF.ScreenHeight = pHandle->LogicalScreenHeight;
+        }
+        if (frameCount > 1 && pHandle->LogicalScreenWidth != 0 && pHandle->LogicalScreenHeight != 0)
+        {
+            pHandle->ImageInfo.Flags |= PVFF_IMAGESEQUENCE;
+            pHandle->ImageInfo.NumOfImages = 1;
+            pHandle->ImageInfo.Width = pHandle->LogicalScreenWidth;
+            pHandle->ImageInfo.Height = pHandle->LogicalScreenHeight;
+            pHandle->ImageInfo.BytesPerLine = GetAlignedStride(pHandle->ImageInfo.Width);
+            pHandle->ImageInfo.StretchedWidth = pHandle->ImageInfo.Width;
+            pHandle->ImageInfo.StretchedHeight = pHandle->ImageInfo.Height;
+            pHandle->StretchWidth = (LONG)pHandle->ImageInfo.Width;
+            pHandle->StretchHeight = (LONG)pHandle->ImageInfo.Height;
+        }
+    }
+
     if (HasExifMetadata(pFrame, format))
         pHandle->ImageInfo.Flags |= PVFF_EXIF;
 
@@ -430,6 +518,7 @@ static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imag
     pHandle->StretchMode = PV_STRETCH_NO;
 
     SafeRelease(pFrame);
+    SafeRelease(pDecoderReader);
     SafeRelease(pDecoder);
     SafeRelease(pFactory);
     return PVC_OK;
@@ -717,6 +806,7 @@ static BOOL IsOutputFormatSupported(int fmt, int colors, int colorModel, BOOL us
     switch (fmt)
     {
     case PVF_BMP:
+    case PVF_GIF:
     case PVF_JPG:
     case PVF_PNG:
     case PVF_TIFF:
@@ -733,6 +823,9 @@ static REFGUID GetEncoderContainerFormat(int fmt)
     {
     case PVF_BMP:
         return GUID_ContainerFormatBmp;
+
+    case PVF_GIF:
+        return GUID_ContainerFormatGif;
 
     case PVF_JPG:
         return GUID_ContainerFormatJpeg;
@@ -763,7 +856,96 @@ static PVCODE SaveSurfaceToRawOutput(const COpenImageSurface* pSurface, const LP
     return written == totalSize ? PVC_OK : PVC_WRITING_ERROR;
 }
 
-static PVCODE SaveSurfaceToWicFile(const COpenImageSurface* pSurface, const char* fileName, int fmt, TProgressProc Progress, void* AppSpecific)
+static WICPixelFormatGUID GetSurfacePixelFormat(const COpenImageSurface* pSurface)
+{
+    if (pSurface != NULL && pSurface->BytesPerPixel == 4)
+        return GUID_WICPixelFormat32bppBGRA;
+
+    return GUID_WICPixelFormat24bppBGR;
+}
+
+static WICPixelFormatGUID GetEncoderPixelFormat(int fmt)
+{
+    switch (fmt)
+    {
+    case PVF_GIF:
+        return GUID_WICPixelFormat8bppIndexed;
+
+    default:
+        return GUID_WICPixelFormat24bppBGR;
+    }
+}
+
+static PVCODE CreateBitmapSourceFromSurface(IWICImagingFactory* pFactory, const COpenImageSurface* pSurface, IWICBitmapSource** ppBitmapSource)
+{
+    IWICBitmap* pBitmap = NULL;
+    HRESULT hr;
+
+    if (ppBitmapSource != NULL)
+        *ppBitmapSource = NULL;
+    if (pFactory == NULL || pSurface == NULL || pSurface->Pixels == NULL || ppBitmapSource == NULL)
+        return PVC_INVALID_HANDLE;
+
+    hr = pFactory->CreateBitmapFromMemory(pSurface->Width, pSurface->Height, GetSurfacePixelFormat(pSurface),
+                                          pSurface->BytesPerLine, pSurface->BytesPerLine * pSurface->Height,
+                                          pSurface->Pixels, &pBitmap);
+    if (FAILED(hr))
+        return HrToPVCode(hr);
+
+    *ppBitmapSource = pBitmap;
+    return PVC_OK;
+}
+
+static PVCODE PrepareBitmapSourceForEncoder(IWICImagingFactory* pFactory, IWICBitmapSource* pSourceBitmap, WICPixelFormatGUID pixelFormat, IWICBitmapSource** ppWriteSource)
+{
+    WICPixelFormatGUID sourcePixelFormat;
+    IWICFormatConverter* pConverter = NULL;
+    IWICPalette* pPalette = NULL;
+    HRESULT hr;
+    PVCODE ret = PVC_OK;
+
+    if (ppWriteSource != NULL)
+        *ppWriteSource = NULL;
+    if (pFactory == NULL || pSourceBitmap == NULL || ppWriteSource == NULL)
+        return PVC_INVALID_HANDLE;
+
+    hr = pSourceBitmap->GetPixelFormat(&sourcePixelFormat);
+    if (FAILED(hr))
+        return HrToPVCode(hr);
+
+    if (IsEqualGUID(sourcePixelFormat, pixelFormat))
+    {
+        pSourceBitmap->AddRef();
+        *ppWriteSource = pSourceBitmap;
+        return PVC_OK;
+    }
+
+    hr = pFactory->CreateFormatConverter(&pConverter);
+    if (SUCCEEDED(hr) && IsEqualGUID(pixelFormat, GUID_WICPixelFormat8bppIndexed))
+        hr = pFactory->CreatePalette(&pPalette);
+    if (SUCCEEDED(hr) && pPalette != NULL)
+        hr = pPalette->InitializeFromBitmap(pSourceBitmap, 256, FALSE);
+    if (SUCCEEDED(hr))
+        hr = pConverter->Initialize(pSourceBitmap, pixelFormat,
+                                    IsEqualGUID(pixelFormat, GUID_WICPixelFormat8bppIndexed) ? WICBitmapDitherTypeErrorDiffusion : WICBitmapDitherTypeNone,
+                                    pPalette, 0.0,
+                                    IsEqualGUID(pixelFormat, GUID_WICPixelFormat8bppIndexed) ? WICBitmapPaletteTypeMedianCut : WICBitmapPaletteTypeCustom);
+    if (SUCCEEDED(hr))
+    {
+        *ppWriteSource = pConverter;
+        pConverter = NULL;
+    }
+    else
+    {
+        ret = HrToPVCode(hr);
+    }
+
+    SafeRelease(pPalette);
+    SafeRelease(pConverter);
+    return ret;
+}
+
+static PVCODE SaveSurfaceToWicFile(const COpenImageSurface* pSurface, const char* fileName, const LPPVSaveImageInfo pSii, TProgressProc Progress, void* AppSpecific)
 {
     CCoInitScope coInit;
     IWICImagingFactory* pFactory = NULL;
@@ -771,17 +953,23 @@ static PVCODE SaveSurfaceToWicFile(const COpenImageSurface* pSurface, const char
     IWICBitmapEncoder* pEncoder = NULL;
     IWICBitmapFrameEncode* pFrameEncode = NULL;
     IPropertyBag2* pPropertyBag = NULL;
+    IWICBitmapSource* pSourceBitmap = NULL;
+    IWICBitmapSource* pWriteSource = NULL;
     WCHAR fileNameW[MAX_PATH];
-    GUID pixelFormat = GUID_WICPixelFormat24bppBGR;
+    WICPixelFormatGUID pixelFormat;
     HRESULT hr;
-    PVCODE ret;
+    PVCODE ret = PVC_OK;
+    int fmt;
 
-    if (pSurface == NULL || fileName == NULL || *fileName == 0)
+    if (pSurface == NULL || fileName == NULL || *fileName == 0 || pSii == NULL)
         return PVC_CANNOT_OPEN_FILE;
     if (FAILED(coInit.Hr))
         return HrToPVCode(coInit.Hr);
     if (0 == MultiByteToWideChar(CP_ACP, 0, fileName, -1, fileNameW, SizeOf(fileNameW)))
         return PVC_CANNOT_OPEN_FILE;
+
+    fmt = pSii->Format;
+    pixelFormat = GetEncoderPixelFormat(fmt);
 
     hr = CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
                           IID_IWICImagingFactory, (void**)&pFactory);
@@ -792,20 +980,24 @@ static PVCODE SaveSurfaceToWicFile(const COpenImageSurface* pSurface, const char
     if (SUCCEEDED(hr))
         hr = pFactory->CreateEncoder(GetEncoderContainerFormat(fmt), NULL, &pEncoder);
     if (SUCCEEDED(hr))
+        ret = CreateBitmapSourceFromSurface(pFactory, pSurface, &pSourceBitmap);
+    if (SUCCEEDED(hr) && ret == PVC_OK)
         hr = pEncoder->Initialize(pStream, WICBitmapEncoderNoCache);
-    if (SUCCEEDED(hr))
+    if (SUCCEEDED(hr) && ret == PVC_OK)
         hr = pEncoder->CreateNewFrame(&pFrameEncode, &pPropertyBag);
-    if (SUCCEEDED(hr))
+    if (SUCCEEDED(hr) && ret == PVC_OK)
         hr = pFrameEncode->Initialize(pPropertyBag);
-    if (SUCCEEDED(hr))
+    if (SUCCEEDED(hr) && ret == PVC_OK)
         hr = pFrameEncode->SetSize(pSurface->Width, pSurface->Height);
+    if (SUCCEEDED(hr) && (pSii->HorDPI != 0 || pSii->VerDPI != 0))
+        hr = pFrameEncode->SetResolution(pSii->HorDPI != 0 ? pSii->HorDPI : 96.0,
+                                         pSii->VerDPI != 0 ? pSii->VerDPI : 96.0);
     if (SUCCEEDED(hr))
         hr = pFrameEncode->SetPixelFormat(&pixelFormat);
-    if (SUCCEEDED(hr) && !IsEqualGUID(pixelFormat, GUID_WICPixelFormat24bppBGR))
-        hr = WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT;
-    if (SUCCEEDED(hr))
-        hr = pFrameEncode->WritePixels(pSurface->Height, pSurface->BytesPerLine,
-                                       pSurface->BytesPerLine * pSurface->Height, pSurface->Pixels);
+    if (SUCCEEDED(hr) && ret == PVC_OK)
+        ret = PrepareBitmapSourceForEncoder(pFactory, pSourceBitmap, pixelFormat, &pWriteSource);
+    if (SUCCEEDED(hr) && ret == PVC_OK)
+        hr = pFrameEncode->WriteSource(pWriteSource, NULL);
     if (SUCCEEDED(hr))
         hr = pFrameEncode->Commit();
     if (SUCCEEDED(hr))
@@ -814,13 +1006,342 @@ static PVCODE SaveSurfaceToWicFile(const COpenImageSurface* pSurface, const char
     if (Progress != NULL)
         Progress(100, AppSpecific);
 
-    ret = HrToPVCode(hr);
+    if (ret == PVC_OK)
+        ret = HrToPVCode(hr);
+    SafeRelease(pWriteSource);
+    SafeRelease(pSourceBitmap);
     SafeRelease(pPropertyBag);
     SafeRelease(pFrameEncode);
     SafeRelease(pEncoder);
     SafeRelease(pStream);
     SafeRelease(pFactory);
     return ret == PVC_READING_ERROR ? PVC_WRITING_ERROR : ret;
+}
+
+static void ReleaseSequence(COpenImageBackendHandle* pHandle)
+{
+    LPPVImageSequence pSeq;
+
+    if (pHandle == NULL)
+        return;
+
+    pSeq = pHandle->Sequence;
+    while (pSeq != NULL)
+    {
+        LPPVImageSequence pNext = pSeq->pNext;
+
+        if (pSeq->TransparentHandle != NULL)
+            DeleteObject(pSeq->TransparentHandle);
+        if (pSeq->ImgHandle != NULL)
+            DeleteObject(pSeq->ImgHandle);
+        free(pSeq);
+        pSeq = pNext;
+    }
+    pHandle->Sequence = NULL;
+}
+
+static HBITMAP CreateBitmapFromSurface32(const COpenImageSurface* pSurface)
+{
+    BITMAPINFO bi;
+    void* pBits = NULL;
+    HBITMAP hBitmap;
+    DWORD y;
+
+    if (pSurface == NULL || pSurface->BytesPerPixel != 4)
+        return NULL;
+
+    memset(&bi, 0, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
+    bi.bmiHeader.biWidth = pSurface->Width;
+    bi.bmiHeader.biHeight = -(LONG)pSurface->Height;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+
+    hBitmap = CreateDIBSection(NULL, &bi, DIB_RGB_COLORS, &pBits, NULL, 0);
+    if (hBitmap == NULL || pBits == NULL)
+        return NULL;
+
+    for (y = 0; y < pSurface->Height; y++)
+        memcpy((BYTE*)pBits + y * pSurface->BytesPerLine, pSurface->Lines[y], pSurface->Width * 4);
+    return hBitmap;
+}
+
+static void FillSurfaceRect32(COpenImageSurface* pSurface, const RECT* pRect, COLORREF color)
+{
+    LONG left;
+    LONG top;
+    LONG right;
+    LONG bottom;
+    LONG x;
+    LONG y;
+
+    if (pSurface == NULL || pRect == NULL || pSurface->BytesPerPixel != 4)
+        return;
+
+    left = max(0, pRect->left);
+    top = max(0, pRect->top);
+    right = min((LONG)pSurface->Width, pRect->right);
+    bottom = min((LONG)pSurface->Height, pRect->bottom);
+    for (y = top; y < bottom; y++)
+    {
+        BYTE* pLine = pSurface->Lines[y];
+
+        for (x = left; x < right; x++)
+        {
+            BYTE* pPixel = pLine + x * 4;
+
+            pPixel[0] = GetBValue(color);
+            pPixel[1] = GetGValue(color);
+            pPixel[2] = GetRValue(color);
+            pPixel[3] = 0;
+        }
+    }
+}
+
+static void BlendSurface32(COpenImageSurface* pCanvas, const COpenImageSurface* pFrame, int left, int top)
+{
+    DWORD x;
+    DWORD y;
+
+    if (pCanvas == NULL || pFrame == NULL || pCanvas->BytesPerPixel != 4 || pFrame->BytesPerPixel != 4)
+        return;
+
+    for (y = 0; y < pFrame->Height; y++)
+    {
+        LONG dstY = top + (LONG)y;
+
+        if (dstY < 0 || dstY >= (LONG)pCanvas->Height)
+            continue;
+
+        for (x = 0; x < pFrame->Width; x++)
+        {
+            LONG dstX = left + (LONG)x;
+            BYTE* pSrcPixel;
+            BYTE* pDstPixel;
+            BYTE alpha;
+
+            if (dstX < 0 || dstX >= (LONG)pCanvas->Width)
+                continue;
+
+            pSrcPixel = pFrame->Lines[y] + x * 4;
+            pDstPixel = pCanvas->Lines[dstY] + dstX * 4;
+            alpha = pSrcPixel[3];
+            if (alpha == 0)
+                continue;
+            if (alpha == 255)
+            {
+                memcpy(pDstPixel, pSrcPixel, 4);
+            }
+            else
+            {
+                pDstPixel[0] = (BYTE)((pSrcPixel[0] * alpha + pDstPixel[0] * (255 - alpha)) / 255);
+                pDstPixel[1] = (BYTE)((pSrcPixel[1] * alpha + pDstPixel[1] * (255 - alpha)) / 255);
+                pDstPixel[2] = (BYTE)((pSrcPixel[2] * alpha + pDstPixel[2] * (255 - alpha)) / 255);
+                pDstPixel[3] = 255;
+            }
+        }
+    }
+}
+
+static PVCODE BuildGifSequence(COpenImageBackendHandle* pHandle)
+{
+    CCoInitScope coInit;
+    IWICImagingFactory* pFactory = NULL;
+    IWICBitmapDecoder* pDecoder = NULL;
+    WCHAR fileNameW[MAX_PATH];
+    UINT frameCount = 0;
+    HRESULT hr;
+    DWORD frameIndex;
+    COpenImageSurface canvasSurface;
+    COpenImageSurface previousSurface;
+    RECT fullRect;
+    PVCODE ret = PVC_OK;
+    LPPVImageSequence pSeqHead = NULL;
+    LPPVImageSequence* ppSeqTail = &pSeqHead;
+
+    if (pHandle == NULL || pHandle->FileName[0] == 0 || pHandle->ImageInfo.Format != PVF_GIF)
+        return PVC_INVALID_HANDLE;
+    if (pHandle->Sequence != NULL)
+        return PVC_OK;
+    if (FAILED(coInit.Hr))
+        return HrToPVCode(coInit.Hr);
+    if (0 == MultiByteToWideChar(CP_ACP, 0, pHandle->FileName, -1, fileNameW, SizeOf(fileNameW)))
+        return PVC_CANNOT_OPEN_FILE;
+
+    InitSurface(&canvasSurface);
+    InitSurface(&previousSurface);
+
+    hr = CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
+                          IID_IWICImagingFactory, (void**)&pFactory);
+    if (SUCCEEDED(hr))
+        hr = pFactory->CreateDecoderFromFilename(fileNameW, NULL, GENERIC_READ,
+                                                 WICDecodeMetadataCacheOnDemand, &pDecoder);
+    if (SUCCEEDED(hr))
+        hr = pDecoder->GetFrameCount(&frameCount);
+    if (FAILED(hr))
+    {
+        ret = HrToPVCode(hr);
+        goto GIF_DONE;
+    }
+
+    if (pHandle->LogicalScreenWidth == 0 || pHandle->LogicalScreenHeight == 0)
+    {
+        pHandle->LogicalScreenWidth = pHandle->ImageInfo.Width;
+        pHandle->LogicalScreenHeight = pHandle->ImageInfo.Height;
+    }
+
+    ret = AllocateSurface(&canvasSurface, pHandle->LogicalScreenWidth, pHandle->LogicalScreenHeight, 4);
+    if (ret != PVC_OK)
+        goto GIF_DONE;
+    ret = AllocateSurface(&previousSurface, pHandle->LogicalScreenWidth, pHandle->LogicalScreenHeight, 4);
+    if (ret != PVC_OK)
+        goto GIF_DONE;
+
+    fullRect.left = 0;
+    fullRect.top = 0;
+    fullRect.right = pHandle->LogicalScreenWidth;
+    fullRect.bottom = pHandle->LogicalScreenHeight;
+    FillSurfaceRect32(&canvasSurface, &fullRect, pHandle->BkColor);
+
+    for (frameIndex = 0; frameIndex < frameCount && ret == PVC_OK; frameIndex++)
+    {
+        IWICBitmapFrameDecode* pFrame = NULL;
+        IWICMetadataQueryReader* pReader = NULL;
+        IWICFormatConverter* pConverter = NULL;
+        COpenImageSurface frameSurface;
+        WORD left = 0;
+        WORD top = 0;
+        WORD frameWidth = 0;
+        WORD frameHeight = 0;
+        WORD delay = 0;
+        BYTE disposal = PVDM_UNDEFINED;
+        RECT frameRect;
+        HBITMAP hFrameBitmap;
+        LPPVImageSequence pSeq;
+
+        InitSurface(&frameSurface);
+        hr = pDecoder->GetFrame(frameIndex, &pFrame);
+        if (SUCCEEDED(hr))
+            pFrame->GetMetadataQueryReader(&pReader);
+        if (SUCCEEDED(hr))
+            hr = pFactory->CreateFormatConverter(&pConverter);
+        if (SUCCEEDED(hr))
+            hr = pConverter->Initialize(pFrame, GUID_WICPixelFormat32bppBGRA,
+                                        WICBitmapDitherTypeNone, NULL, 0.0,
+                                        WICBitmapPaletteTypeCustom);
+        if (FAILED(hr))
+        {
+            ret = HrToPVCode(hr);
+            ReleaseSurface(&frameSurface);
+            SafeRelease(pConverter);
+            SafeRelease(pReader);
+            SafeRelease(pFrame);
+            break;
+        }
+
+        if (!GetMetadataValueUI2(pReader, L"/imgdesc/Left", &left))
+            left = 0;
+        if (!GetMetadataValueUI2(pReader, L"/imgdesc/Top", &top))
+            top = 0;
+        if (!GetMetadataValueUI2(pReader, L"/imgdesc/Width", &frameWidth))
+            frameWidth = 0;
+        if (!GetMetadataValueUI2(pReader, L"/imgdesc/Height", &frameHeight))
+            frameHeight = 0;
+        GetMetadataValueUI2(pReader, L"/grctlext/Delay", &delay);
+        GetMetadataValueUI1(pReader, L"/grctlext/Disposal", &disposal);
+
+        if (frameWidth == 0 || frameHeight == 0)
+        {
+            UINT w = 0;
+            UINT h = 0;
+
+            pFrame->GetSize(&w, &h);
+            frameWidth = (WORD)w;
+            frameHeight = (WORD)h;
+        }
+
+        ret = AllocateSurface(&frameSurface, frameWidth, frameHeight, 4);
+        if (ret == PVC_OK)
+        {
+            hr = pConverter->CopyPixels(NULL, frameSurface.BytesPerLine,
+                                        frameSurface.BytesPerLine * frameSurface.Height, frameSurface.Pixels);
+            if (FAILED(hr))
+                ret = HrToPVCode(hr);
+        }
+
+        if (ret == PVC_OK && disposal == PVDM_PREVIOUS)
+            memcpy(previousSurface.Pixels, canvasSurface.Pixels, canvasSurface.BytesPerLine * canvasSurface.Height);
+
+        if (ret == PVC_OK)
+            BlendSurface32(&canvasSurface, &frameSurface, left, top);
+
+        hFrameBitmap = NULL;
+        if (ret == PVC_OK)
+        {
+            hFrameBitmap = CreateBitmapFromSurface32(&canvasSurface);
+            if (hFrameBitmap == NULL)
+                ret = PVC_GDI_ERROR;
+        }
+
+        if (ret == PVC_OK)
+        {
+            pSeq = (LPPVImageSequence)malloc(sizeof(PVImageSequence));
+            if (pSeq == NULL)
+            {
+                DeleteObject(hFrameBitmap);
+                ret = PVC_OUT_OF_MEMORY;
+            }
+            else
+            {
+                memset(pSeq, 0, sizeof(*pSeq));
+                pSeq->Rect = fullRect;
+                pSeq->ImgHandle = hFrameBitmap;
+                pSeq->Delay = delay != 0 ? delay * 10 : 100;
+                pSeq->DisposalMethod = disposal;
+                *ppSeqTail = pSeq;
+                ppSeqTail = &pSeq->pNext;
+            }
+        }
+
+        frameRect.left = left;
+        frameRect.top = top;
+        frameRect.right = left + frameWidth;
+        frameRect.bottom = top + frameHeight;
+        if (ret == PVC_OK)
+        {
+            switch (disposal)
+            {
+            case PVDM_BACKGROUND:
+                FillSurfaceRect32(&canvasSurface, &frameRect, pHandle->BkColor);
+                break;
+
+            case PVDM_PREVIOUS:
+                memcpy(canvasSurface.Pixels, previousSurface.Pixels, canvasSurface.BytesPerLine * canvasSurface.Height);
+                break;
+            }
+        }
+
+        ReleaseSurface(&frameSurface);
+        SafeRelease(pConverter);
+        SafeRelease(pReader);
+        SafeRelease(pFrame);
+    }
+
+    if (ret == PVC_OK)
+        pHandle->Sequence = pSeqHead;
+    else
+    {
+        pHandle->Sequence = pSeqHead;
+        ReleaseSequence(pHandle);
+    }
+
+GIF_DONE:
+    ReleaseSurface(&previousSurface);
+    ReleaseSurface(&canvasSurface);
+    SafeRelease(pDecoder);
+    SafeRelease(pFactory);
+    return ret;
 }
 
 static PVCODE DecodeFrameFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex)
@@ -1378,7 +1899,7 @@ static PVCODE WINAPI PVSaveImageOpen(LPPVHandle Img, const char* OutFName, LPPVS
         if (userDefinedOutput)
             ret = SaveSurfaceToRawOutput(&outputSurface, pSii, Progress, AppSpecific);
         else
-            ret = SaveSurfaceToWicFile(&outputSurface, OutFName, pSii->Format, Progress, AppSpecific);
+            ret = SaveSurfaceToWicFile(&outputSurface, OutFName, pSii, Progress, AppSpecific);
     }
 
     ReleaseSurface(&outputSurface);
@@ -1420,9 +1941,22 @@ static DWORD WINAPI PVIsOutCombSupportedOpen(int Fmt, int Compr, int Colors, int
 
 static PVCODE WINAPI PVReadImageSequenceOpen(LPPVHandle Img, LPPVImageSequence* ppSeq)
 {
+    COpenImageBackendHandle* pHandle = GetOpenImageBackendHandle(Img);
+    PVCODE ret;
+
     if (ppSeq != NULL)
         *ppSeq = NULL;
-    return PVC_INVALID_HANDLE;
+    if (pHandle == NULL || ppSeq == NULL)
+        return PVC_INVALID_HANDLE;
+    if ((pHandle->ImageInfo.Flags & PVFF_IMAGESEQUENCE) == 0 || pHandle->ImageInfo.Format != PVF_GIF)
+        return PVC_INVALID_HANDLE;
+
+    ret = BuildGifSequence(pHandle);
+    if (ret != PVC_OK)
+        return ret;
+
+    *ppSeq = pHandle->Sequence;
+    return *ppSeq != NULL ? PVC_OK : PVC_INVALID_HANDLE;
 }
 
 static PVCODE WINAPI PVCropImageOpen(LPPVHandle Img, int Left, int Top, int Width, int Height)

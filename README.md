@@ -66,6 +66,8 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 - 2026-04-01: PictView open-build foundation was implemented so the plugin now boots through a local open backend, no longer requires `PVW32Cnv.dll`/`PVW32Cnv.lib` on the main path, and builds successfully in `Debug|Win32` and `Debug|x64`
 - 2026-04-01: The first WIC-backed PictView slice now opens supported static image files through WIC, bridges decoded pixels into a `24bpp BGR` surface compatible with `PVImageInfo`/`PVImageHandles`, supports attached `HBITMAP` and clipboard bitmap sources, and renders through the existing viewer seam
 - 2026-04-01: The open PictView backend gained an initial transform/save pipeline with in-memory crop support, WIC-backed file save for BMP/JPEG/PNG/TIFF, and `RAW` callback output for preview and thumbnail generation paths, with successful `Debug|Win32` and `Debug|x64` plugin builds
+- 2026-04-01: The open PictView backend gained initial animated GIF support through `PVImageSequence`, composing frames from WIC decoder metadata into a viewer-consumable sequence while keeping single-frame formats on the simpler path
+- 2026-04-01: The WIC save pipeline now negotiates encoder-supported pixel formats instead of assuming fixed `24bpp BGR`, which enables internal conversion for `GIF` save in addition to BMP/JPEG/PNG/TIFF, with successful `Debug|Win32` and `Debug|x64` plugin builds
 
 ### Contributing
 
