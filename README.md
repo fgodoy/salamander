@@ -70,6 +70,8 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 - 2026-04-01: The WIC save pipeline now negotiates encoder-supported pixel formats instead of assuming fixed `24bpp BGR`, which enables internal conversion for `GIF` save in addition to BMP/JPEG/PNG/TIFF, with successful `Debug|Win32` and `Debug|x64` plugin builds
 - 2026-04-01: JPEG/TIFF EXIF orientation is now bridged from WIC metadata into the historical `PVFF_*` rotation/mirror flags, and the viewer can fall back to those flags for autorotate when `EXIF.DLL` does not provide orientation details, with successful `Debug|Win32` and `Debug|x64` plugin builds
 - 2026-04-01: A local `Debug_x86` runtime tree was prepared under `.localbuild\` with `salamand.exe`, `english.slg`, `pictview.spl`, and `exif.dll`, and a controlled boot smoke confirmed that the app stays alive long enough for manual testing
+- 2026-04-01: Local `Release_x86` and `Release_x64` runtime trees were prepared under `.localbuild\` with `salamand.exe`, `salmon.exe`, `pictview.spl`, `checkver.spl`, `demoplug.spl`, and the required language/resources for practical manual smoke on both architectures
+- 2026-04-01: The open PictView backend decode path now reuses already-loaded current-frame metadata instead of reloading it immediately before the first decode, trimming redundant work on the common open/view flow
 
 ### Contributing
 

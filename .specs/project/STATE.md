@@ -1,7 +1,7 @@
 # State
 
-**Last Updated:** 2026-04-01T18:28:00-03:00
-**Current Work:** PictView WIC backend implementation with a bootable local `Debug_x86` app tree in `.localbuild`; next work is manual feature smoke inside the running app, thumbnail verification, and residual TIFF/page-flow polish
+**Last Updated:** 2026-04-01T18:58:00-03:00
+**Current Work:** PictView WIC backend implementation with bootable local `Release_x86` and `Release_x64` app trees in `.localbuild`; next work is manual feature smoke inside the running app, thumbnail/performance verification, and residual TIFF/page-flow polish
 
 ---
 
@@ -43,6 +43,10 @@ The legacy viewer and thumbnail pipeline already understand `PVFF_ROTATE90`, `PV
 ### LL-005: A testable local app tree can be produced without the interactive populate script by building targeted projects against a workspace-local `OPENSAL_BUILD_DIR`
 
 For quick plugin validation, building `salamand.vcxproj` and the affected plugin project into a local `.localbuild\` tree is enough to get a runnable Win32 app shell for smoke testing, even before a full runtime population flow is automated.
+
+### LL-006: The first decode path should reuse already-loaded frame metadata when the caller has just opened the image or requested current-frame info
+
+The WIC backend originally reloaded the same frame metadata immediately before decode, even when `PVOpenImageEx` or `PVGetImageInfo` had already populated the active frame. Reusing that state avoids redundant decoder setup on the common first-view path and is a safe micro-optimization because frame identity is already tracked in `ImageInfo.CurrentImage`.
 
 ---
 

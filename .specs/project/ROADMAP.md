@@ -42,6 +42,8 @@
   - pipeline de `Save As` do backend open ajustado para negociar o pixel format real do encoder WIC, destravando conversão interna para `GIF` além de BMP/JPEG/PNG/TIFF
   - metadata de orientação EXIF agora é lida via WIC para JPEG/TIFF e projetada em `PVFF_ROTATE90`/`PVFF_FLIP_HOR`/`PVFF_BOTTOMTOTOP`, com fallback local de autorotate no viewer quando a `EXIF.DLL` não resolve a orientação
   - árvore local de runtime `Debug_x86` preparada em `.localbuild\` com `salamand.exe`, `english.slg`, `pictview.spl` e `exif.dll`, e smoke de boot confirmou que a app permanece aberta pelo menos 5 segundos
+  - árvores locais de runtime `Release_x86` e `Release_x64` preparadas em `.localbuild\` com `salamand.exe`, `salmon.exe`, `pictview.spl`, `checkver.spl`, `demoplug.spl` e resources mínimos, e smoke de boot confirmou processo principal e bug reporter ativos nas duas arquiteturas
+  - caminho de decode do backend open ajustado para reaproveitar metadados já carregados do frame atual, reduzindo um reload redundante no primeiro decode após o open/getinfo
   - validação por build `Debug|Win32` e `Debug|x64`
 
 ## In Progress
@@ -50,7 +52,7 @@
 - UI modernization discovery and path selection
 - Manual smoke for TreeView rich file icons
 - Portuguese localization planning for distinct `pt-BR` and `pt-PT` support using the existing translation workflow
-- PictView WIC backend completion for thumbnails, EXIF-aware behavior, manual smoke, and TIFF/page-flow polish
+- PictView WIC backend completion for manual smoke, residual thumbnail/performance review, and TIFF/page-flow polish
 
 ## Backlog
 
