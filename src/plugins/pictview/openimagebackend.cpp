@@ -77,6 +77,8 @@ static DWORD MapCompression(DWORD format);
 static BOOL HasExifMetadata(IWICBitmapFrameDecode* pFrame, DWORD format);
 static BOOL GetMetadataValueUI2(IWICMetadataQueryReader* pReader, LPCWSTR pszQuery, WORD* pValue);
 static BOOL GetMetadataValueUI1(IWICMetadataQueryReader* pReader, LPCWSTR pszQuery, BYTE* pValue);
+static BOOL GetFrameExifOrientation(IWICBitmapFrameDecode* pFrame, DWORD format, WORD* pOrientation);
+static DWORD MapExifOrientationToFlags(WORD orientation);
 static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex);
 static PVCODE DecodeFrameFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex);
 static PVCODE DecodeBitmapHandle(COpenImageBackendHandle* pHandle, HBITMAP hBitmap);
@@ -396,6 +398,62 @@ static BOOL GetMetadataValueUI1(IWICMetadataQueryReader* pReader, LPCWSTR pszQue
     return ok;
 }
 
+static BOOL GetFrameExifOrientation(IWICBitmapFrameDecode* pFrame, DWORD format, WORD* pOrientation)
+{
+    IWICMetadataQueryReader* pReader = NULL;
+    HRESULT hr;
+    BOOL ok = FALSE;
+
+    if (pOrientation != NULL)
+        *pOrientation = 1;
+    if (pFrame == NULL || pOrientation == NULL)
+        return FALSE;
+    if (format != PVF_JPG && format != PVF_TIFF)
+        return FALSE;
+
+    hr = pFrame->GetMetadataQueryReader(&pReader);
+    if (FAILED(hr))
+        return FALSE;
+
+    if (format == PVF_JPG)
+        ok = GetMetadataValueUI2(pReader, L"/app1/ifd/{ushort=274}", pOrientation);
+    else
+        ok = GetMetadataValueUI2(pReader, L"/ifd/{ushort=274}", pOrientation);
+
+    SafeRelease(pReader);
+    return ok;
+}
+
+static DWORD MapExifOrientationToFlags(WORD orientation)
+{
+    switch (orientation)
+    {
+    case 2:
+        return PVFF_FLIP_HOR;
+
+    case 3:
+        return PVFF_BOTTOMTOTOP | PVFF_FLIP_HOR;
+
+    case 4:
+        return PVFF_BOTTOMTOTOP;
+
+    case 5:
+        return PVFF_BOTTOMTOTOP | PVFF_ROTATE90;
+
+    case 6:
+        return PVFF_ROTATE90;
+
+    case 7:
+        return PVFF_FLIP_HOR | PVFF_ROTATE90;
+
+    case 8:
+        return PVFF_BOTTOMTOTOP | PVFF_FLIP_HOR | PVFF_ROTATE90;
+
+    default:
+        return 0;
+    }
+}
+
 static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imageIndex)
 {
     CCoInitScope coInit;
@@ -415,6 +473,7 @@ static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imag
     DWORD format = 0;
     WORD logicalWidth = 0;
     WORD logicalHeight = 0;
+    WORD orientation = 1;
     HRESULT hr;
 
     if (pHandle == NULL || pHandle->BitmapSource || pHandle->FileName[0] == 0)
@@ -507,7 +566,12 @@ static PVCODE LoadFrameInfoFromFile(COpenImageBackendHandle* pHandle, DWORD imag
         }
     }
 
-    if (HasExifMetadata(pFrame, format))
+    if (GetFrameExifOrientation(pFrame, format, &orientation))
+    {
+        pHandle->ImageInfo.Flags |= PVFF_EXIF;
+        pHandle->ImageInfo.Flags |= MapExifOrientationToFlags(orientation);
+    }
+    else if (HasExifMetadata(pFrame, format))
         pHandle->ImageInfo.Flags |= PVFF_EXIF;
 
     if (GetFileAttributesExA(pHandle->FileName, GetFileExInfoStandard, &attrData))

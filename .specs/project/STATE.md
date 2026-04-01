@@ -1,7 +1,7 @@
 # State
 
-**Last Updated:** 2026-04-01T18:16:00-03:00
-**Current Work:** PictView WIC backend implementation after animated GIF sequence support and GIF-capable WIC save-path negotiation, with manual smoke and EXIF-aware follow-up still pending
+**Last Updated:** 2026-04-01T18:28:00-03:00
+**Current Work:** PictView WIC backend implementation with a bootable local `Debug_x86` app tree in `.localbuild`; next work is manual feature smoke inside the running app, thumbnail verification, and residual TIFF/page-flow polish
 
 ---
 
@@ -35,6 +35,14 @@ Restoring `PVSaveImage` even for a limited static-image slice unlocks multiple e
 ### LL-003: WIC encoder support must be treated as negotiated output, not a fixed `24bpp BGR` contract
 
 `IWICBitmapFrameEncode::SetPixelFormat` may return a different format than requested. The open backend now has to convert the in-memory surface to the encoder-accepted format before writing, which is what makes `GIF` save viable through the same WIC save seam.
+
+### LL-004: Reusing historical `PVFF_*` orientation flags is the lowest-risk bridge into viewer and thumbnail flows
+
+The legacy viewer and thumbnail pipeline already understand `PVFF_ROTATE90`, `PVFF_FLIP_HOR`, and `PVFF_BOTTOMTOTOP`. Projecting WIC EXIF orientation metadata into those existing flags avoids a wider refactor and lets autorotate degrade gracefully even when `EXIF.DLL` cannot provide orientation details.
+
+### LL-005: A testable local app tree can be produced without the interactive populate script by building targeted projects against a workspace-local `OPENSAL_BUILD_DIR`
+
+For quick plugin validation, building `salamand.vcxproj` and the affected plugin project into a local `.localbuild\` tree is enough to get a runnable Win32 app shell for smoke testing, even before a full runtime population flow is automated.
 
 ---
 

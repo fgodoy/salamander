@@ -40,6 +40,8 @@
   - suporte inicial de transform/salvamento adicionado para crop em memória, `Save As` WIC para BMP/JPEG/PNG/TIFF e saída `RAW` por callback para preview/thumbnail flow
   - suporte inicial para GIF animado adicionado via `PVImageSequence` com composição de frames e leitura de metadata nativa do WIC
   - pipeline de `Save As` do backend open ajustado para negociar o pixel format real do encoder WIC, destravando conversão interna para `GIF` além de BMP/JPEG/PNG/TIFF
+  - metadata de orientação EXIF agora é lida via WIC para JPEG/TIFF e projetada em `PVFF_ROTATE90`/`PVFF_FLIP_HOR`/`PVFF_BOTTOMTOTOP`, com fallback local de autorotate no viewer quando a `EXIF.DLL` não resolve a orientação
+  - árvore local de runtime `Debug_x86` preparada em `.localbuild\` com `salamand.exe`, `english.slg`, `pictview.spl` e `exif.dll`, e smoke de boot confirmou que a app permanece aberta pelo menos 5 segundos
   - validação por build `Debug|Win32` e `Debug|x64`
 
 ## In Progress

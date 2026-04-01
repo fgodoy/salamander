@@ -1606,15 +1606,21 @@ LRESULT CRendererWindow::OnPaint()
 
                 // Note: Some raw formats have PVF_JPG but "TIFF" in Info2, some have PVF_TIFF
                 if (FileName != NULL && ((pvii.Format == PVF_JPG) || (pvii.Format == PVF_TIFF)) &&
-                    (pvii.Flags & PVFF_EXIF) && G.AutoRotate && InitEXIF(NULL, TRUE))
+                    (pvii.Flags & PVFF_EXIF) && G.AutoRotate)
                 {
-                    EXIFGETORIENTATIONINFO getInfo = (EXIFGETORIENTATIONINFO)GetProcAddress(EXIFLibrary, "EXIFGetOrientationInfo");
+                    EXIFGETORIENTATIONINFO getInfo = NULL;
+                    BOOL haveOrientation = FALSE;
+                    BOOL canUseExifDll = InitEXIF(NULL, TRUE);
+
+                    if (canUseExifDll)
+                        getInfo = (EXIFGETORIENTATIONINFO)GetProcAddress(EXIFLibrary, "EXIFGetOrientationInfo");
 
                     if (getInfo)
                     {
                         SThumbExifInfo info;
                         int cmd;
 
+                        memset(&info, 0, sizeof(info));
                         getInfo(FileName, &info);
                         if ((info.flags & (TEI_WIDTH | TEI_HEIGHT)) == (TEI_WIDTH | TEI_HEIGHT))
                         {
@@ -1626,6 +1632,7 @@ LRESULT CRendererWindow::OnPaint()
                                 // seem to store image data with normal orientatation but (Orient != 1) && (info.Width < info.Height)
                                 info.Orient = 1;
                             }
+                            haveOrientation = TRUE;
                         }
                         else if ((pvii.Format == PVF_TIFF) || !strcmp(pvii.Info1, "TIFF"))
                         {
@@ -1641,32 +1648,112 @@ LRESULT CRendererWindow::OnPaint()
                                 info.Orient = 6;
                                 break; // CMD_ROTATE_RIGHT
                             }
+                            haveOrientation = TRUE;
                         }
-                        cmd = 0;
-                        switch (info.Orient)
+                        if (!haveOrientation)
                         {
-                            //                  case 1/*normal case*/"
-                        case 2:
+                            switch (pvii.Flags & (PVFF_BOTTOMTOTOP | PVFF_FLIP_HOR | PVFF_ROTATE90))
+                            {
+                            case PVFF_FLIP_HOR:
+                                info.Orient = 2;
+                                haveOrientation = TRUE;
+                                break;
+                            case PVFF_BOTTOMTOTOP | PVFF_FLIP_HOR:
+                                info.Orient = 3;
+                                haveOrientation = TRUE;
+                                break;
+                            case PVFF_BOTTOMTOTOP:
+                                info.Orient = 4;
+                                haveOrientation = TRUE;
+                                break;
+                            case PVFF_BOTTOMTOTOP | PVFF_ROTATE90:
+                                info.Orient = 5;
+                                haveOrientation = TRUE;
+                                break;
+                            case PVFF_ROTATE90:
+                                info.Orient = 6;
+                                haveOrientation = TRUE;
+                                break;
+                            case PVFF_FLIP_HOR | PVFF_ROTATE90:
+                                info.Orient = 7;
+                                haveOrientation = TRUE;
+                                break;
+                            case PVFF_BOTTOMTOTOP | PVFF_FLIP_HOR | PVFF_ROTATE90:
+                                info.Orient = 8;
+                                haveOrientation = TRUE;
+                                break;
+                            }
+                        }
+
+                        cmd = 0;
+                        if (haveOrientation)
+                        {
+                            switch (info.Orient)
+                            {
+                                //                  case 1/*normal case*/"
+                            case 2:
+                                cmd = CMD_MIRROR_HOR;
+                                break;
+                            case 3:
+                                cmd = CMD_ROTATE180;
+                                break;
+                            case 4:
+                                cmd = CMD_MIRROR_HOR;
+                                break;
+                            case 5:
+                                cmd = CMD_ROTATE_LEFT;
+                                break; // and mirror ?
+                            case 6:
+                                cmd = CMD_ROTATE_RIGHT;
+                                break; // tested
+                            case 7:
+                                cmd = CMD_ROTATE_RIGHT;
+                                break; // and mirror ?
+                            case 8:
+                                cmd = CMD_ROTATE_LEFT;
+                                break; // tested
+                            }
+                            if (cmd)
+                            {
+                                Viewer->InitProgressBar();
+                                code = PVW32DLL.PVReadImage2(PVHandle, NULL, NULL, ProgressProcedure2 /*NULL*/, this, pvii.CurrentImage);
+                                Viewer->KillProgressBar();
+                                Viewer->SetStatusBarTexts(IDS_SB_AUTOROTATING);
+                                bAlreadyLoaded = TRUE;
+                                if (PVC_OK == code)
+                                {
+                                    PostMessage(HWindow, WM_COMMAND, cmd, 0);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        int cmd = 0;
+
+                        switch (pvii.Flags & (PVFF_BOTTOMTOTOP | PVFF_FLIP_HOR | PVFF_ROTATE90))
+                        {
+                        case PVFF_FLIP_HOR:
                             cmd = CMD_MIRROR_HOR;
                             break;
-                        case 3:
+                        case PVFF_BOTTOMTOTOP | PVFF_FLIP_HOR:
                             cmd = CMD_ROTATE180;
                             break;
-                        case 4:
+                        case PVFF_BOTTOMTOTOP:
                             cmd = CMD_MIRROR_HOR;
                             break;
-                        case 5:
+                        case PVFF_BOTTOMTOTOP | PVFF_ROTATE90:
                             cmd = CMD_ROTATE_LEFT;
-                            break; // and mirror ?
-                        case 6:
+                            break;
+                        case PVFF_ROTATE90:
                             cmd = CMD_ROTATE_RIGHT;
-                            break; // tested
-                        case 7:
+                            break;
+                        case PVFF_FLIP_HOR | PVFF_ROTATE90:
                             cmd = CMD_ROTATE_RIGHT;
-                            break; // and mirror ?
-                        case 8:
+                            break;
+                        case PVFF_BOTTOMTOTOP | PVFF_FLIP_HOR | PVFF_ROTATE90:
                             cmd = CMD_ROTATE_LEFT;
-                            break; // tested
+                            break;
                         }
                         if (cmd)
                         {
