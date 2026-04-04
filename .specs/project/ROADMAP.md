@@ -2,6 +2,15 @@
 
 ## Completed
 
+### 2026-04-04
+
+- Root PowerShell Build Wrapper
+  - novo `build.ps1` na raiz para disparar a compilação sem trocar de diretório
+  - seleção de configuração e plataforma diretamente na linha de comando do PowerShell
+- Panel TreeView Status Line Layout Fix
+  - a linha de informações do painel ativo passa a ficar alinhada apenas sob a área do listbox
+  - o host do tree e o splitter passam a ocupar toda a altura útil da faixa esquerda quando o tree está aberto
+
 ### 2026-03-27
 
 - Panel TreeView

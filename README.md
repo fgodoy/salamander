@@ -34,6 +34,7 @@ Use ```\src\vcxproj\!populate_build_dir.cmd``` to populate build directory with 
 
 ### Project Scripts
 
+- ```\build.ps1``` builds from the repository root and lets you choose configuration and platform directly on the PowerShell command line
 - ```\src\vcxproj\build.cmd``` builds a selected solution configuration from the command line and resolves modern Visual Studio / MSBuild locations automatically
 - ```\src\vcxproj\rebuild.cmd``` rebuilds the selected solution configuration from the command line
 - ```\src\vcxproj\!populate_build_dir.cmd``` copies runtime files required to launch Open Salamander from the build output
@@ -43,6 +44,8 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 
 ### Project Timeline
 
+- 2026-04-04: Added a repository-root ```build.ps1``` wrapper so PowerShell builds can be launched from the project root with command-line selection of configuration and platform
+- 2026-04-04: Panel TreeView status line layout was corrected so the active panel information line stays under the file list area instead of rendering under the left-side tree host
 - 2026-03-27: Panel TreeView feature completed with menu/config toggle, fixed left-side host, active-panel synchronization, persisted width, and successful ```Debug|Win32``` solution build validation
 - 2026-03-27: Double click on the central splitter was adjusted so, with the tree open, the visible file panes rebalance using the tree-reserved width and end up with matching list area widths
 - 2026-03-27: The centered splitter mode was made sticky across resize, maximize, and treeview show/hide transitions so balanced visible file-pane widths are preserved after reflow
