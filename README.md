@@ -44,6 +44,7 @@ Keep this list updated whenever project-facing scripts are added or existing scr
 
 ### Project Timeline
 
+- 2026-04-04: TreeView toggle now preserves the visible left/right pane proportion when hiding or showing the tree, so centered layouts stay centered and custom splits keep their relative balance after `Ctrl+Shift+T`
 - 2026-04-04: Added a repository-root ```build.ps1``` wrapper so PowerShell builds can be launched from the project root with command-line selection of configuration and platform
 - 2026-04-04: Panel TreeView status line layout was corrected so the active panel information line stays under the file list area instead of rendering under the left-side tree host
 - 2026-03-27: Panel TreeView feature completed with menu/config toggle, fixed left-side host, active-panel synchronization, persisted width, and successful ```Debug|Win32``` solution build validation

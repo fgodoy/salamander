@@ -493,6 +493,9 @@ public:
     void ClearHistory(); // clears all histories
 
     void GetSplitRect(RECT& r);
+    void GetPanelWidthsFromSplitPosition(double splitPosition, int& leftWidth, int& rightWidth);
+    double GetVisibleLeftPanelRatio();
+    double GetSplitPositionForVisibleLeftPanelRatio(double leftVisibleRatio);
     double GetVisiblePanesCenteredSplitPosition();
     void UpdateCenteredSplitPosition();
 

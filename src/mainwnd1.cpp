@@ -771,16 +771,17 @@ BOOL CMainWindow::ToggleTreeView()
 {
     CALL_STACK_MESSAGE1("CMainWindow::ToggleTreeView()");
 
+    double visibleLeftRatio = GetVisibleLeftPanelRatio();
+
     Configuration.TreeViewVisible = !Configuration.TreeViewVisible;
 
     LeftPanel->UpdateTreeView(TRUE);
     RightPanel->UpdateTreeView(FALSE);
 
     if (KeepSplitPositionCenteredOnVisiblePanes)
-    {
         UpdateCenteredSplitPosition();
-        LayoutWindows();
-    }
+    else
+        SplitPosition = GetSplitPositionForVisibleLeftPanelRatio(visibleLeftRatio);
 
     return TRUE;
 }

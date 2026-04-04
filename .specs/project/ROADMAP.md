@@ -4,6 +4,9 @@
 
 ### 2026-04-04
 
+- Panel TreeView Toggle Ratio Preservation
+  - esconder ou mostrar o tree mantém a proporção visível entre painel esquerdo e direito
+  - layouts centralizados continuam centralizados e layouts assimétricos preservam o balanceamento relativo após `Ctrl+Shift+T`
 - Root PowerShell Build Wrapper
   - novo `build.ps1` na raiz para disparar a compilação sem trocar de diretório
   - seleção de configuração e plataforma diretamente na linha de comando do PowerShell
