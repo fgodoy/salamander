@@ -11,6 +11,7 @@
 #include "plugins.h"
 #include "fileswnd.h"
 #include "mainwnd.h"
+#include "stswnd.h"
 #include "shellib.h"
 #include "toolbar.h"
 #include "shiconov.h"
@@ -2418,14 +2419,27 @@ BOOL CDrivesList::ExecuteItem(int index, HWND hwnd, const RECT* exclude, BOOL* f
 BOOL CDrivesList::Track()
 {
     CALL_STACK_MESSAGE1("CDrivesList::Track()");
-    RECT r;
-    GetWindowRect(FilesWindow->HWindow, &r);
-    int dirHeight = MainWindow->GetDirectoryLineHeight();
-
     RECT buttonRect;
-    buttonRect = r;
-    buttonRect.bottom = buttonRect.top + dirHeight;
-    buttonRect.right = buttonRect.left + dirHeight;
+    BOOL buttonRectFound = FALSE;
+    if (FilesWindow->DirectoryLine != NULL &&
+        FilesWindow->DirectoryLine->ToolBar != NULL &&
+        FilesWindow->DirectoryLine->ToolBar->HWindow != NULL)
+    {
+        DWORD changeDriveCmd = MainWindow->LeftPanel == FilesWindow ? CM_LCHANGEDRIVE : CM_RCHANGEDRIVE;
+        int index = FilesWindow->DirectoryLine->ToolBar->FindItemPosition(changeDriveCmd);
+        if (index != -1)
+            buttonRectFound = FilesWindow->DirectoryLine->ToolBar->GetItemRect(index, buttonRect);
+    }
+    if (!buttonRectFound)
+    {
+        RECT r;
+        GetWindowRect(FilesWindow->HWindow, &r);
+        int dirHeight = MainWindow->GetDirectoryLineHeight();
+
+        buttonRect = r;
+        buttonRect.bottom = buttonRect.top + dirHeight;
+        buttonRect.right = buttonRect.left + dirHeight;
+    }
 
     MenuPopup = new CMenuPopup;
     if (MenuPopup == NULL)
