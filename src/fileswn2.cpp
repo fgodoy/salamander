@@ -221,6 +221,8 @@ void CFilesWindow::SetTreeViewWidth(int width)
         GetClientRect(HWindow, &r);
         SendMessage(HWindow, WM_SIZE, SIZE_RESTORED,
                     MAKELONG(r.right - r.left, r.bottom - r.top));
+        RedrawWindow(HWindow, NULL, NULL,
+                     RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
     }
 }
 
@@ -1673,6 +1675,8 @@ void CFilesWindow::UpdateTreeView(BOOL active)
         GetClientRect(HWindow, &r);
         SendMessage(HWindow, WM_SIZE, SIZE_RESTORED,
                     MAKELONG(r.right - r.left, r.bottom - r.top));
+        RedrawWindow(HWindow, NULL, NULL,
+                     RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
     }
 }
 

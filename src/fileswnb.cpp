@@ -114,9 +114,12 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
             int stHeight = 0;
             int treeWidth = 0;
             int treeHeight = height;
+            int treeY = 0;
             int listX = 0;
             int listWidth = width;
             int listHeight = height;
+            int directoryLineX = 0;
+            int directoryLineWidth = width;
             int statusLineX = 0;
             int statusLineWidth = width;
             int windowsCount = 1;
@@ -136,34 +139,39 @@ CFilesWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
                 InvalidateRect(StatusLine->HWindow, NULL, FALSE);
                 windowsCount++;
             }
-            treeHeight -= dlHeight;
             listHeight -= dlHeight;
             if (HTreeView != NULL && TreeViewActive)
             {
                 treeWidth = GetTreeViewWidth(width);
                 listX = treeWidth + TREEVIEW_SPLITTER_WIDTH;
                 listWidth = width - listX;
+                directoryLineX = listX;
+                directoryLineWidth = listWidth;
                 statusLineX = listX;
                 statusLineWidth = listWidth;
+                treeY = 0;
+                treeHeight = height;
                 windowsCount += HTreeSplit != NULL ? 2 : 1;
             }
+            else
+                treeHeight -= dlHeight;
 
             HDWP hdwp = HANDLES(BeginDeferWindowPos(windowsCount));
             if (hdwp != NULL)
             {
                 if (DirectoryLine->HWindow != NULL)
                     hdwp = HANDLES(DeferWindowPos(hdwp, DirectoryLine->HWindow, NULL,
-                                                  0, 0, width, dlHeight,
+                                                  directoryLineX, 0, directoryLineWidth, dlHeight,
                                                   SWP_NOACTIVATE | SWP_NOZORDER));
 
                 if (HTreeView != NULL && TreeViewActive)
                     hdwp = HANDLES(DeferWindowPos(hdwp, HTreeView, NULL,
-                                                  0, dlHeight, treeWidth, treeHeight,
+                                                  0, treeY, treeWidth, treeHeight,
                                                   SWP_NOACTIVATE | SWP_NOZORDER));
 
                 if (HTreeSplit != NULL && TreeViewActive)
                     hdwp = HANDLES(DeferWindowPos(hdwp, HTreeSplit, NULL,
-                                                  treeWidth, dlHeight, TREEVIEW_SPLITTER_WIDTH, treeHeight,
+                                                  treeWidth, treeY, TREEVIEW_SPLITTER_WIDTH, treeHeight,
                                                   SWP_NOACTIVATE | SWP_NOZORDER));
 
                 hdwp = HANDLES(DeferWindowPos(hdwp, ListBox->HWindow, NULL,
