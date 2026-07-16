@@ -290,6 +290,7 @@ void CPluginInterface::SaveConfiguration(HWND parent, HKEY regKey, CSalamanderRe
 }
 
 const char* MARKDOWN_EXTENSIONS = "*.md;*.mdown;*.markdown";
+const char* CODE_EXTENSIONS = "*.c;*.cpp;*.h;*.hpp;*.cc;*.cs;*.java;*.py;*.go;*.rs;*.rb;*.php;*.swift;*.kt;*.kts;*.js;*.mjs;*.cjs;*.ts;*.tsx;*.sql;*.json;*.xml;*.xsd;*.yaml;*.yml;*.sh;*.bat;*.cmd;*.ps1";
 
 void CPluginInterface::Connect(HWND parent, CSalamanderConnectAbstract* salamander)
 {
@@ -316,6 +317,8 @@ void CPluginInterface::Connect(HWND parent, CSalamanderConnectAbstract* salamand
     {
         salamander->AddViewer(MARKDOWN_EXTENSIONS, TRUE); // support for Markdown
     }
+    
+    salamander->AddViewer(CODE_EXTENSIONS, TRUE); // support for Syntax Highlighted Code
 }
 
 CPluginInterfaceForViewerAbstract*
@@ -435,7 +438,8 @@ unsigned WINAPI ThreadIEMessageLoop(void* param)
 enum FileFormatEnum
 {
     ffeHTML,
-    ffeMarkdown
+    ffeMarkdown,
+    ffeCode
 };
 
 FileFormatEnum GetFileFormat(const char* name)
@@ -448,7 +452,15 @@ FileFormatEnum GetFileFormat(const char* name)
         masks->SetMasksString(MARKDOWN_EXTENSIONS, FALSE);
         int err;
         if (masks->PrepareMasks(err) && masks->AgreeMasks(name, NULL))
+        {
             ret = ffeMarkdown;
+        }
+        else
+        {
+            masks->SetMasksString(CODE_EXTENSIONS, FALSE);
+            if (masks->PrepareMasks(err) && masks->AgreeMasks(name, NULL))
+                ret = ffeCode;
+        }
         SalamanderGeneral->FreeSalamanderMaskGroup(masks);
     }
     return ret;
@@ -473,6 +485,8 @@ BOOL CPluginInterfaceForViewer::ViewFile(const char* name, int left, int top, in
     data.ContentStream = NULL;
     if (fileFormat == ffeMarkdown)
         data.ContentStream = ConvertMarkdownToHTML(name); // if it returns NULL, display the file as HTML
+    else if (fileFormat == ffeCode)
+        data.ContentStream = ConvertCodeToHTML(name);
     data.Left = left;
     data.Top = top;
     data.Width = width;
@@ -1967,6 +1981,7 @@ void CIEWindow::CloseSite()
     }
     if (m_pController)
     {
+        m_pController->remove_AcceleratorKeyPressed(m_acceleratorKeyPressedToken);
         m_pController->Close();
         m_pController->Release();
         m_pController = NULL;
@@ -2017,6 +2032,34 @@ void CIEWindow::OnControllerCreated(ICoreWebView2Controller* controller)
     if (SUCCEEDED(hr) && m_pWebView)
     {
         m_pWebView->AddRef();
+
+        m_pController->add_AcceleratorKeyPressed(
+            Microsoft::WRL::Callback<ICoreWebView2AcceleratorKeyPressedEventHandler>(
+                [this](ICoreWebView2Controller* sender, ICoreWebView2AcceleratorKeyPressedEventArgs* args) -> HRESULT
+                {
+                    COREWEBVIEW2_KEY_EVENT_KIND keyEventKind;
+                    args->get_KeyEventKind(&keyEventKind);
+                    
+                    if (keyEventKind == COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN)
+                    {
+                        UINT virtualKey;
+                        args->get_VirtualKey(&virtualKey);
+                        
+                        if (virtualKey == VK_ESCAPE)
+                        {
+                            PostMessage(m_hParentWnd, WM_CLOSE, 0, 0);
+                            args->put_Handled(TRUE);
+                        }
+                        else if (virtualKey == 'P' && (GetKeyState(VK_CONTROL) & 0x8000) != 0)
+                        {
+                            PostMessage(m_hParentWnd, WM_COMMAND, MAKEWPARAM(1001, 0), 0);
+                            args->put_Handled(TRUE);
+                        }
+                    }
+                    return S_OK;
+                }).Get(),
+            &m_acceleratorKeyPressedToken
+        );
 
         // Get DLL directory
         char dllPath[MAX_PATH];
