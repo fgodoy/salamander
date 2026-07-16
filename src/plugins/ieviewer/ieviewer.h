@@ -387,6 +387,7 @@ public:
     ICoreWebView2* m_pWebView;
     bool m_isInitialized;
     EventRegistrationToken m_acceleratorKeyPressedToken;
+    EventRegistrationToken m_webMessageReceivedToken;
 
 protected:
     HWND m_hParentWnd;
@@ -402,6 +403,7 @@ public:
         m_isInitialized = false;
         m_hParentWnd = NULL;
         m_acceleratorKeyPressedToken = {};
+        m_webMessageReceivedToken = {};
     }
 
     // create and connect to WebView2

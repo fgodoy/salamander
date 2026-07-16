@@ -1976,6 +1976,7 @@ void CIEWindow::CloseSite()
     
     if (m_pWebView)
     {
+        m_pWebView->remove_WebMessageReceived(m_webMessageReceivedToken);
         m_pWebView->Release();
         m_pWebView = NULL;
     }
@@ -2059,6 +2060,44 @@ void CIEWindow::OnControllerCreated(ICoreWebView2Controller* controller)
                     return S_OK;
                 }).Get(),
             &m_acceleratorKeyPressedToken
+        );
+
+        // Register WebMessageReceived handler
+        m_pWebView->add_WebMessageReceived(
+            Microsoft::WRL::Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+                [this](ICoreWebView2* sender, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT
+                {
+                    LPWSTR messageRaw = NULL;
+                    args->TryGetWebMessageAsString(&messageRaw);
+                    if (messageRaw)
+                    {
+                        if (wcscmp(messageRaw, L"Escape") == 0)
+                        {
+                            PostMessage(m_hParentWnd, WM_CLOSE, 0, 0);
+                        }
+                        else if (wcscmp(messageRaw, L"CtrlP") == 0)
+                        {
+                            PostMessage(m_hParentWnd, WM_COMMAND, MAKEWPARAM(1001, 0), 0);
+                        }
+                        CoTaskMemFree(messageRaw);
+                    }
+                    return S_OK;
+                }).Get(),
+            &m_webMessageReceivedToken
+        );
+
+        // Inject script to catch Esc and Ctrl+P keys inside the loaded page
+        m_pWebView->AddScriptToExecuteOnDocumentCreated(
+            L"window.addEventListener('keydown', (e) => {\n"
+            L"  if (e.key === 'Escape') {\n"
+            L"    window.chrome.webview.postMessage('Escape');\n"
+            L"  }\n"
+            L"  if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {\n"
+            L"    e.preventDefault();\n"
+            L"    window.chrome.webview.postMessage('CtrlP');\n"
+            L"  }\n"
+            L"});",
+            nullptr
         );
 
         // Get DLL directory
