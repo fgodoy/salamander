@@ -127,7 +127,15 @@ call :mycopy_with_mkdir_bat *.tab       ..\..\convert\westeuro %1\convert\westeu
 
 call :mycopy_with_mkdir_bat *.* ..\plugins\automation\sample-scripts %1\plugins\automation\scripts
 
-call :mycopy_with_mkdir_bat *.* ..\plugins\ieviewer\cmark-gfm\css %1\plugins\ieviewer\css
+call :mycopy_with_mkdir_bat *.* ..\plugins\ieviewer\js %1\plugins\ieviewer\js
+call :mycopy_with_mkdir_bat *.* ..\plugins\ieviewer\css %1\plugins\ieviewer\css
+
+echo %1 | findstr /I "x64" >nul
+if not errorlevel 1 (
+  copy "..\common\dep\webview2\x64\WebView2Loader.dll" "%1\"
+) else (
+  copy "..\common\dep\webview2\x86\WebView2Loader.dll" "%1\"
+)
 
 call :mycopy_with_mkdir_bat readme.txt     ..\plugins\zip\zip2sfx %1\plugins\zip\zip2sfx
 call :mycopy_with_mkdir_bat sam_cz.set     ..\plugins\zip\zip2sfx %1\plugins\zip\zip2sfx

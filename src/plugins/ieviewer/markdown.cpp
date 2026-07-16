@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: 2023 Open Salamander Authors
+// SPDX-FileCopyrightText: 2023 Open Salamander Authors
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "precomp.h"
@@ -14,35 +14,7 @@
 // https://blog.kowalczyk.info/article/g9ne/showing-html-from-memory-in-embedded-web-control-on-windows.html
 // https://github.com/sumatrapdfreader/sumatrapdf/blob/master/src/utils/HtmlWindow.cpp (BSD license)
 
-FILE* OpenMarkdownCSS()
-{
-    char path[MAX_PATH];
-    if (GetModuleFileName(DLLInstance, path, MAX_PATH) == 0)
-    {
-        TRACE_E("GetModuleFileName() failed");
-        return NULL;
-    }
-    char* name = strrchr(path, '\\');
-    if (name == NULL)
-    {
-        TRACE_E("Extension not found");
-        return NULL;
-    }
-    strcpy(name + 1, "css\\custom.css");
-    FILE* fp = fopen(path, "r");
-    if (fp == NULL)
-    {
-        TRACE_I(path << " not found, we will try githubmd.css instead");
-        strcpy(name + 1, "css\\githubmd.css");
-        fp = fopen(path, "r");
-        if (fp == NULL)
-        {
-            TRACE_I(path << " not found, we will display unstyled html");
-            return NULL;
-        }
-    }
-    return fp;
-}
+// (Local JS/CSS assets are loaded via SetVirtualHostNameToFolderMapping at http://salamander.local/)
 
 const char* extension_names[] = {
     "autolink",
@@ -112,23 +84,26 @@ IStream* ConvertMarkdownToHTML(const char* name)
     }
 
     char buff[10 * 1024];
-    //sprintf_s(buff, "<!DOCTYPE html><html lang=\"cs\" dir=\"ltr\"><head><meta charset=\"utf-8\"><title>zzzz</title><style>\n");
-    sprintf_s(buff, "<!DOCTYPE html><html lang=\"cs\" dir=\"ltr\"><head><meta charset=\"utf-8\"><style>\n");
-    oStream->Write(buff, (ULONG)strlen(buff), &written);
-
-    // if we find CSS, inline it
-    FILE* fpCSS = OpenMarkdownCSS();
-    if (fpCSS != NULL)
-    {
-        size_t bytes;
-        while ((bytes = fread(buff, 1, sizeof(buff), fpCSS)) > 0)
-            oStream->Write(buff, (ULONG)bytes, &written);
-        fclose(fpCSS);
-        sprintf_s(buff, "\n");
-        oStream->Write(buff, (ULONG)strlen(buff), &written);
-    }
-
-    sprintf_s(buff, "</style></head><body><article class=\"markdown-body\">\n");
+    sprintf_s(buff, 
+        "<!DOCTYPE html><html lang=\"cs\" dir=\"ltr\"><head><meta charset=\"utf-8\">\n"
+        "<link rel=\"stylesheet\" href=\"http://salamander.local/css/githubmd.css\">\n"
+        "<script src=\"http://salamander.local/js/mermaid.min.js\"></script>\n"
+        "<script>\n"
+        "document.addEventListener('DOMContentLoaded', function() {\n"
+        "    var blocks = document.querySelectorAll('code.language-mermaid');\n"
+        "    blocks.forEach(function(block) {\n"
+        "        var pre = block.parentElement;\n"
+        "        if (pre && pre.tagName === 'PRE') {\n"
+        "            var div = document.createElement('div');\n"
+        "            div.className = 'mermaid';\n"
+        "            div.textContent = block.textContent;\n"
+        "            pre.replaceWith(div);\n"
+        "        }\n"
+        "    });\n"
+        "    mermaid.initialize({ startOnLoad: true, securityLevel: 'loose' });\n"
+        "});\n"
+        "</script>\n"
+        "</head><body><article class=\"markdown-body\">\n");
     oStream->Write(buff, (ULONG)strlen(buff), &written);
     oStream->Write(html, (ULONG)strlen(html), &written);
     sprintf_s(buff, "</article></body></html>\n");

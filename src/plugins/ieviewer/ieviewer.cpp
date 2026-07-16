@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: 2023 Open Salamander Authors
+// SPDX-FileCopyrightText: 2023 Open Salamander Authors
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "precomp.h"
@@ -512,6 +512,8 @@ BOOL CPluginInterfaceForViewer::ViewFile(const char* name, int left, int top, in
 // InitViewer & ReleaseViewer
 //
 
+LRESULT CALLBACK WebView2HostWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
 BOOL InitViewer()
 {
     CALL_STACK_MESSAGE1("InitViewer()");
@@ -538,6 +540,25 @@ BOOL InitViewer()
         TRACE_E("RegisterClass has failed");
         return FALSE;
     }
+
+    WNDCLASS wcHost;
+    wcHost.style = CS_DBLCLKS;
+    wcHost.lpfnWndProc = WebView2HostWndProc;
+    wcHost.cbClsExtra = 0;
+    wcHost.cbWndExtra = 0;
+    wcHost.hInstance = DLLInstance;
+    wcHost.hIcon = NULL;
+    wcHost.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wcHost.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wcHost.lpszMenuName = NULL;
+    wcHost.lpszClassName = "SalamanderWebView2Host";
+    if (RegisterClass(&wcHost) == 0)
+    {
+        TRACE_E("RegisterClass(SalamanderWebView2Host) has failed");
+        UnregisterClass(WINDOW_CLASSNAME, DLLInstance);
+        return FALSE;
+    }
+
     return TRUE;
 }
 
@@ -548,6 +569,8 @@ void ReleaseViewer()
         GlobalDeleteAtom(AtomObject);
     if (!UnregisterClass(WINDOW_CLASSNAME, DLLInstance))
         TRACE_E("UnregisterClass(WINDOW_CLASSNAME) has failed");
+    if (!UnregisterClass("SalamanderWebView2Host", DLLInstance))
+        TRACE_E("UnregisterClass(SalamanderWebView2Host) has failed");
 }
 
 //***********************************************************************************
@@ -1018,25 +1041,6 @@ STDMETHODIMP CImpIOleControlSite::TransformCoords(POINTL* lpptlHimetric,
 STDMETHODIMP CImpIOleControlSite::TranslateAccelerator(LPMSG lpMsg,
                                                        DWORD grfModifiers)
 {
-    CALL_STACK_MESSAGE2("CImpIOleControlSite::TranslateAccelerator(, 0x%X)",
-                        grfModifiers);
-    TRACE_I("CImpIOleControlSite::TranslateAccelerator");
-    if (lpMsg->message == WM_KEYDOWN &&
-        lpMsg->wParam == 'R' &&
-        (GetKeyState(VK_CONTROL) & 0x8000) != 0)
-    {
-        if (m_pSite->MarkdownFilename[0] != 0)
-        {
-            IStream* contentStream = ConvertMarkdownToHTML(m_pSite->MarkdownFilename);
-            if (contentStream != NULL && m_pSite->m_pIWebBrowser2 != NULL)
-            {
-                NavigateAux(m_pSite, m_pSite->MarkdownFilename, contentStream);
-                return S_OK;
-            }
-        }
-        m_pSite->m_pIWebBrowser->Refresh();
-        return S_OK;
-    }
     return E_NOTIMPL;
 }
 
@@ -1767,21 +1771,187 @@ void CSite::DisconnectEvents()
 // CIEWindow
 //
 
+std::string ReadStreamToString(IStream* pStream)
+{
+    if (!pStream) return "";
+    LARGE_INTEGER liZero = {0};
+    pStream->Seek(liZero, STREAM_SEEK_SET, NULL);
+    
+    std::string result;
+    char buffer[4096];
+    ULONG bytesRead;
+    while (SUCCEEDED(pStream->Read(buffer, sizeof(buffer), &bytesRead)) && bytesRead > 0)
+    {
+        result.append(buffer, bytesRead);
+    }
+    return result;
+}
+
+// Window Procedure for the child WebView2 Host window
+LRESULT CALLBACK WebView2HostWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    CIEWindow* pThis = (CIEWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    switch (uMsg)
+    {
+    case WM_NCCREATE:
+    {
+        CREATESTRUCT* cs = (CREATESTRUCT*)lParam;
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)cs->lpCreateParams);
+        break;
+    }
+    case WM_CREATE:
+    {
+        CIEWindow* w = (CIEWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+        if (w)
+        {
+            w->HWindow = hwnd;
+            w->InitWebView2();
+        }
+        return 0;
+    }
+    case WM_SIZE:
+        if (pThis && pThis->m_pController)
+        {
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+            pThis->m_pController->put_Bounds(rect);
+        }
+        return 0;
+    }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+// WebView2 Completed Handlers
+class CControllerCompletedHandler;
+
+class CEnvironmentCompletedHandler : public ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler
+{
+private:
+    LONG m_refCount;
+    HWND m_hWnd;
+public:
+    CEnvironmentCompletedHandler(HWND hWnd) : m_refCount(1), m_hWnd(hWnd) {}
+
+    STDMETHODIMP QueryInterface(REFIID riid, void** ppvObj)
+    {
+        if (riid == IID_ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler || riid == IID_IUnknown)
+        {
+            *ppvObj = this;
+            AddRef();
+            return S_OK;
+        }
+        *ppvObj = NULL;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef() { return InterlockedIncrement(&m_refCount); }
+    STDMETHODIMP_(ULONG) Release()
+    {
+        LONG count = InterlockedDecrement(&m_refCount);
+        if (count == 0)
+        {
+            delete this;
+            return 0;
+        }
+        return count;
+    }
+
+    STDMETHODIMP Invoke(HRESULT result, ICoreWebView2Environment* env);
+};
+
+class CControllerCompletedHandler : public ICoreWebView2CreateCoreWebView2ControllerCompletedHandler
+{
+private:
+    LONG m_refCount;
+    HWND m_hWnd;
+public:
+    CControllerCompletedHandler(HWND hWnd) : m_refCount(1), m_hWnd(hWnd) {}
+
+    STDMETHODIMP QueryInterface(REFIID riid, void** ppvObj)
+    {
+        if (riid == IID_ICoreWebView2CreateCoreWebView2ControllerCompletedHandler || riid == IID_IUnknown)
+        {
+            *ppvObj = this;
+            AddRef();
+            return S_OK;
+        }
+        *ppvObj = NULL;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef() { return InterlockedIncrement(&m_refCount); }
+    STDMETHODIMP_(ULONG) Release()
+    {
+        LONG count = InterlockedDecrement(&m_refCount);
+        if (count == 0)
+        {
+            delete this;
+            return 0;
+        }
+        return count;
+    }
+
+    STDMETHODIMP Invoke(HRESULT result, ICoreWebView2Controller* controller)
+    {
+        if (FAILED(result) || !controller)
+        {
+            char msg[256];
+            sprintf_s(msg, "WebView2 Controller creation failed. HRESULT: 0x%08X", result);
+            MessageBox(m_hWnd, msg, "WebView2 Error", MB_OK | MB_ICONERROR);
+            TRACE_E("WebView2 Controller creation failed: " << result);
+            return result;
+        }
+        CIEWindow* host = (CIEWindow*)GetWindowLongPtr(m_hWnd, GWLP_USERDATA);
+        if (host)
+        {
+            host->OnControllerCreated(controller);
+        }
+        else
+        {
+            controller->Release();
+        }
+        return S_OK;
+    }
+};
+
+STDMETHODIMP CEnvironmentCompletedHandler::Invoke(HRESULT result, ICoreWebView2Environment* env)
+{
+    if (FAILED(result) || !env)
+    {
+        char msg[256];
+        sprintf_s(msg, "WebView2 Environment creation failed. HRESULT: 0x%08X", result);
+        MessageBox(m_hWnd, msg, "WebView2 Error", MB_OK | MB_ICONERROR);
+        TRACE_E("WebView2 Environment creation failed: " << result);
+        return result;
+    }
+    HRESULT hr = env->CreateCoreWebView2Controller(m_hWnd, new CControllerCompletedHandler(m_hWnd));
+    if (FAILED(hr))
+    {
+        char msg[256];
+        sprintf_s(msg, "CreateCoreWebView2Controller failed. HRESULT: 0x%08X", hr);
+        MessageBox(m_hWnd, msg, "WebView2 Error", MB_OK | MB_ICONERROR);
+        TRACE_E("CreateCoreWebView2Controller failed: " << hr);
+    }
+    return S_OK;
+}
+
+// CIEWindow implementations
 BOOL CIEWindow::CreateSite(HWND hParent)
 {
     CALL_STACK_MESSAGE1("CIEWindow::CreateSite()");
     TRACE_I("CIEWindow::CreateSite()");
-    if (!m_Site.Create(hParent))
-        return FALSE;
+    
+    // Initialize COM/OLE for this thread since WebView2 requires STA COM apartment
+    OleInitialize(NULL);
 
-    HWND hwnd;
-    HRESULT hr = m_Site.m_pIOleInPlaceObject->GetWindow(&hwnd);
-    if (FAILED(hr))
+    m_hParentWnd = hParent;
+    
+    HWindow = CreateWindow("SalamanderWebView2Host", "", WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN, 
+                           0, 0, 100, 100, hParent, NULL, DLLInstance, this);
+    if (HWindow == NULL)
     {
-        TRACE_E("m_pIOleInPlaceObject->GetWindow failed");
+        TRACE_E("CreateWindow(SalamanderWebView2Host) failed");
+        OleUninitialize();
         return FALSE;
     }
-    HWindow = hwnd;
     return TRUE;
 }
 
@@ -1789,141 +1959,317 @@ void CIEWindow::CloseSite()
 {
     CALL_STACK_MESSAGE1("CIEWindow::CloseSite()");
     TRACE_I("CIEWindow::CloseSite()");
-    m_Site.Close();
+    
+    if (m_pWebView)
+    {
+        m_pWebView->Release();
+        m_pWebView = NULL;
+    }
+    if (m_pController)
+    {
+        m_pController->Close();
+        m_pController->Release();
+        m_pController = NULL;
+    }
+    if (HWindow)
+    {
+        DestroyWindow(HWindow);
+        HWindow = NULL;
+    }
+    m_isInitialized = false;
+
+    OleUninitialize();
 }
 
-HRESULT LoadWebBrowserFromStream(IWebBrowser* pWebBrowser, IStream* pStream)
+void CIEWindow::InitWebView2()
 {
-    HRESULT hr;
-    IDispatch* pHtmlDoc = NULL;
-    IPersistStreamInit* pPersistStreamInit = NULL;
-
-    // Retrieve the document object.
-    hr = pWebBrowser->get_Document(&pHtmlDoc);
-    if (SUCCEEDED(hr))
+    wchar_t tempPath[MAX_PATH];
+    if (GetTempPathW(MAX_PATH, tempPath) > 0)
     {
-        // Query for IPersistStreamInit.
-        hr = pHtmlDoc->QueryInterface(IID_IPersistStreamInit, (void**)&pPersistStreamInit);
-        if (SUCCEEDED(hr))
-        {
-            // Initialize the document.
-            hr = pPersistStreamInit->InitNew();
-            if (SUCCEEDED(hr))
-            {
-                // Load the contents of the stream.
-                hr = pPersistStreamInit->Load(pStream);
-            }
-            else
-            {
-                TRACE_E("pPersistStreamInit->InitNew() failed");
-            }
-            pPersistStreamInit->Release();
-        }
-        else
-        {
-            TRACE_E("QueryInterface() on IID_IPersistStreamInit failed");
-        }
-        pHtmlDoc->Release();
+        wcscat_s(tempPath, L"SalamanderWebView2");
     }
     else
     {
-        TRACE_E("get_Document() failed");
+        wcscpy_s(tempPath, L".");
     }
-    return 0;
+
+    HRESULT hr = CreateCoreWebView2EnvironmentWithOptions(
+        nullptr,
+        tempPath,
+        nullptr,
+        new CEnvironmentCompletedHandler(HWindow)
+    );
+    if (FAILED(hr))
+    {
+        char msg[256];
+        sprintf_s(msg, "CreateCoreWebView2EnvironmentWithOptions failed. HRESULT: 0x%08X", hr);
+        MessageBox(HWindow, msg, "WebView2 Error", MB_OK | MB_ICONERROR);
+        TRACE_E("CreateCoreWebView2EnvironmentWithOptions failed: " << hr);
+    }
 }
 
-void NavigateAux(CSite* m_pSite, const char* fileName, IStream* contentStream)
+void CIEWindow::OnControllerCreated(ICoreWebView2Controller* controller)
 {
-    HRESULT hr = m_pSite->m_pIWebBrowser2->Navigate(_bstr_t("about:blank"), NULL, NULL, NULL, NULL);
-    // hack - instead of a more complex solution via the DWebBrowserEvents2::DocumentComplete event
-    // see https://msdn.microsoft.com/en-us/library/aa752047%28v=vs.85%29.aspx
-    // we simply wait until the browser starts returning READYSTATE == READYSTATE_COMPLETE
-    // see https://support.microsoft.com/en-us/kb/180366 and http://www.dsource.org/forums/viewtopic.php?t=2953
-    READYSTATE rs;
-    do
+    m_pController = controller;
+    m_pController->AddRef();
+
+    HRESULT hr = m_pController->get_CoreWebView2(&m_pWebView);
+    if (SUCCEEDED(hr) && m_pWebView)
     {
-        // we have to pump messages, otherwise get_ReadyState() keeps returning READYSTATE_LOADING
-        MSG msg;
-        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        m_pWebView->AddRef();
+
+        // Get DLL directory
+        char dllPath[MAX_PATH];
+        if (GetModuleFileName(DLLInstance, dllPath, MAX_PATH) > 0)
         {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            char* lastSlash = strrchr(dllPath, '\\');
+            if (lastSlash) *lastSlash = '\0';
+            
+            int len = MultiByteToWideChar(CP_ACP, 0, dllPath, -1, NULL, 0);
+            wchar_t* wDllPath = new wchar_t[len];
+            MultiByteToWideChar(CP_ACP, 0, dllPath, -1, wDllPath, len);
+
+            // Map virtual host name "salamander.local" to the plugins/ieviewer folder
+            ICoreWebView2_3* webView3 = NULL;
+            if (SUCCEEDED(m_pWebView->QueryInterface(IID_ICoreWebView2_3, (void**)&webView3)) && webView3)
+            {
+                HRESULT hrMap = webView3->SetVirtualHostNameToFolderMapping(
+                    L"salamander.local",
+                    wDllPath,
+                    COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW
+                );
+                if (FAILED(hrMap))
+                {
+                    char msg[256];
+                    sprintf_s(msg, "SetVirtualHostNameToFolderMapping failed: 0x%08X", hrMap);
+                    MessageBox(HWindow, msg, "WebView2 Map Error", MB_OK);
+                }
+                webView3->Release();
+            }
+            delete[] wDllPath;
         }
-        m_pSite->m_pIWebBrowser2->get_ReadyState(&rs);
-    } while (rs != READYSTATE_COMPLETE);
-    strcpy(m_pSite->MarkdownFilename, fileName);
-    // Call the helper function to load the browser from the stream.
-    LoadWebBrowserFromStream(m_pSite->m_pIWebBrowser, contentStream);
-    contentStream->Release();
+
+        ICoreWebView2Settings* settings = NULL;
+        if (SUCCEEDED(m_pWebView->get_Settings(&settings)) && settings)
+        {
+            settings->put_IsScriptEnabled(TRUE);
+            settings->put_AreDefaultContextMenusEnabled(TRUE);
+            settings->put_IsStatusBarEnabled(FALSE);
+            settings->Release();
+        }
+
+        RECT rect;
+        GetClientRect(HWindow, &rect);
+        m_pController->put_Bounds(rect);
+        m_pController->put_IsVisible(TRUE);
+
+        m_isInitialized = true;
+
+        if (!m_pendingHtml.empty())
+        {
+            NavigateToString(m_pendingHtml);
+            m_pendingHtml.clear();
+        }
+        else if (!m_pendingUrl.empty())
+        {
+            NavigateToUrl(m_pendingUrl);
+            m_pendingUrl.clear();
+        }
+    }
+}
+
+void CIEWindow::NavigateToString(const std::string& html)
+{
+    if (m_pWebView)
+    {
+        int len = MultiByteToWideChar(CP_UTF8, 0, html.c_str(), -1, NULL, 0);
+        wchar_t* wHtml = new wchar_t[len];
+        MultiByteToWideChar(CP_UTF8, 0, html.c_str(), -1, wHtml, len);
+        
+        HRESULT hr = m_pWebView->NavigateToString(wHtml);
+        if (FAILED(hr))
+        {
+            char msg[256];
+            sprintf_s(msg, "NavigateToString failed. HRESULT: 0x%08X", hr);
+            MessageBox(HWindow, msg, "WebView2 Error", MB_OK | MB_ICONERROR);
+        }
+
+        delete[] wHtml;
+    }
+}
+
+void CIEWindow::NavigateToUrl(const std::wstring& url)
+{
+    if (m_pWebView)
+    {
+        m_pWebView->Navigate(url.c_str());
+    }
 }
 
 void CIEWindow::Navigate(LPCTSTR lpszURL, IStream* contentStream)
 {
     CALL_STACK_MESSAGE2("CIEWindow::Navigate(%s)", lpszURL);
-
-    if (contentStream != NULL && m_Site.m_pIWebBrowser2 != NULL)
+    if (contentStream != NULL)
     {
-        NavigateAux(&m_Site, lpszURL, contentStream);
-        return;
+        std::string html = ReadStreamToString(contentStream);
+        contentStream->Release();
+        
+        if (m_isInitialized)
+        {
+            NavigateToString(html);
+        }
+        else
+        {
+            m_pendingHtml = html;
+            m_pendingUrl.clear();
+        }
     }
+    else
+    {
+        int len = MultiByteToWideChar(CP_ACP, 0, lpszURL, -1, NULL, 0);
+        wchar_t* wUrl = new wchar_t[len];
+        MultiByteToWideChar(CP_ACP, 0, lpszURL, -1, wUrl, len);
 
-    OLECHAR szTemp[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, lpszURL, -1, szTemp, MAX_PATH);
-    szTemp[MAX_PATH - 1] = 0;
-
-    VARIANT vURL;
-    vURL.vt = VT_BSTR;
-    vURL.bstrVal = szTemp;
-
-    VARIANT vHeaders;
-    vHeaders.vt = VT_BSTR;
-    vHeaders.bstrVal = NULL;
-
-    VARIANT vTargetFrameName;
-    vTargetFrameName.vt = VT_BSTR;
-    vTargetFrameName.bstrVal = NULL;
-
-    VARIANT vPostData;
-    vPostData.vt = VT_I4;
-    vPostData.lVal = 0;
-
-    VARIANT vFlags;
-    vTargetFrameName.vt = VT_I4;
-    vTargetFrameName.lVal = navNoHistory;
-
-    m_Site.m_fCanClose = TRUE;
-    const char* ext = strrchr(lpszURL, '.');
-    if (ext != NULL && _stricmp(ext + 1, "xml") == 0)
-        m_Site.m_fCanClose = FALSE;
-    m_Site.m_fOpening = TRUE;
-    HRESULT hr = m_Site.m_pIWebBrowser->Navigate(vURL.bstrVal, &vFlags, &vTargetFrameName, &vPostData, &vHeaders);
-    if (hr == E_INVALIDARG)
-        TRACE_E("m_Site.m_pIWebBrowser->Navigate failed: E_INVALIDARG");
-    else if (hr == E_OUTOFMEMORY)
-        TRACE_E("m_Site.m_pIWebBrowser->Navigate failed: E_OUTOFMEMORY");
-    m_Site.m_fOpening = FALSE;
+        if (m_isInitialized)
+        {
+            NavigateToUrl(wUrl);
+        }
+        else
+        {
+            m_pendingUrl = wUrl;
+            m_pendingHtml.clear();
+        }
+        delete[] wUrl;
+    }
 }
 
 BOOL CIEWindow::CanClose()
 {
-    return m_Site.m_fCanClose;
+    return TRUE;
 }
 
 HRESULT CIEWindow::TranslateAccelerator(LPMSG lpmsg)
 {
     CALL_STACK_MESSAGE1("CIEWindow::TranslateAccelerator()");
-    // capture the ESCAPE key and close the viewer
-    if (lpmsg->message == WM_KEYDOWN && lpmsg->wParam == VK_ESCAPE)
+    if (lpmsg->message == WM_KEYDOWN)
     {
-        TRACE_I("Posting WM_CLOSE");
-        PostMessage(m_Site.m_hParentWnd, WM_CLOSE, 0, 0);
-        return S_OK;
+        if (lpmsg->wParam == VK_ESCAPE)
+        {
+            TRACE_I("Posting WM_CLOSE");
+            PostMessage(m_hParentWnd, WM_CLOSE, 0, 0);
+            return S_OK;
+        }
+        else if (lpmsg->wParam == 'P' && (GetKeyState(VK_CONTROL) & 0x8000) != 0)
+        {
+            PostMessage(m_hParentWnd, WM_COMMAND, MAKEWPARAM(1001, 0), 0);
+            return S_OK;
+        }
+    }
+    return S_FALSE;
+}
+
+void CIEWindow::ExportToPdf()
+{
+    if (!m_isInitialized || !m_pWebView)
+    {
+        MessageBox(HWindow, "Viewer not fully initialized.", "Export to PDF", MB_OK | MB_ICONWARNING);
+        return;
     }
 
-    if (m_Site.m_pIOleInPlaceActiveObject != NULL)
-        return m_Site.m_pIOleInPlaceActiveObject->TranslateAccelerator(lpmsg);
-    else
-        return S_FALSE;
+    ICoreWebView2_7* webView7 = NULL;
+    HRESULT hr = m_pWebView->QueryInterface(IID_ICoreWebView2_7, (void**)&webView7);
+    if (FAILED(hr) || !webView7)
+    {
+        MessageBox(HWindow, "PDF export is not supported by your current WebView2 runtime version.", "Export to PDF", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    OPENFILENAME ofn;
+    char szFile[MAX_PATH] = "document.pdf";
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = HWindow;
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrFilter = "PDF Files (*.pdf)\0*.pdf\0All Files (*.*)\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_OVERWRITEPROMPT;
+
+    if (GetSaveFileName(&ofn) == TRUE)
+    {
+        int len = MultiByteToWideChar(CP_ACP, 0, szFile, -1, NULL, 0);
+        wchar_t* wPath = new wchar_t[len];
+        MultiByteToWideChar(CP_ACP, 0, szFile, -1, wPath, len);
+
+        class CPrintToPdfCompletedHandler : public ICoreWebView2PrintToPdfCompletedHandler
+        {
+        private:
+            LONG m_refCount;
+            HWND m_hWnd;
+            wchar_t* m_path;
+        public:
+            CPrintToPdfCompletedHandler(HWND hWnd, const wchar_t* path) : m_refCount(1), m_hWnd(hWnd)
+            {
+                m_path = _wcsdup(path);
+            }
+            ~CPrintToPdfCompletedHandler()
+            {
+                free(m_path);
+            }
+
+            STDMETHODIMP QueryInterface(REFIID riid, void** ppvObj)
+            {
+                if (riid == IID_ICoreWebView2PrintToPdfCompletedHandler || riid == IID_IUnknown)
+                {
+                    *ppvObj = this;
+                    AddRef();
+                    return S_OK;
+                }
+                *ppvObj = NULL;
+                return E_NOINTERFACE;
+            }
+            STDMETHODIMP_(ULONG) AddRef() { return InterlockedIncrement(&m_refCount); }
+            STDMETHODIMP_(ULONG) Release()
+            {
+                LONG count = InterlockedDecrement(&m_refCount);
+                if (count == 0)
+                {
+                    delete this;
+                    return 0;
+                }
+                return count;
+            }
+
+            STDMETHODIMP Invoke(HRESULT errorCode, BOOL isSuccessful)
+            {
+                if (isSuccessful && SUCCEEDED(errorCode))
+                {
+                    MessageBoxW(m_hWnd, L"PDF exported successfully!", L"Export to PDF", MB_OK | MB_ICONINFORMATION);
+                }
+                else
+                {
+                    wchar_t msg[256];
+                    swprintf_s(msg, L"Failed to export PDF. Error code: 0x%08X", errorCode);
+                    MessageBoxW(m_hWnd, msg, L"Export to PDF", MB_OK | MB_ICONERROR);
+                }
+                return S_OK;
+            }
+        };
+
+        hr = webView7->PrintToPdf(wPath, nullptr, new CPrintToPdfCompletedHandler(HWindow, wPath));
+        if (FAILED(hr))
+        {
+            wchar_t msg[256];
+            swprintf_s(msg, L"Failed to initiate PDF export. Error code: 0x%08X", hr);
+            MessageBoxW(HWindow, msg, L"Export to PDF", MB_OK | MB_ICONERROR);
+        }
+
+        delete[] wPath;
+    }
+    webView7->Release();
 }
 
 //
@@ -2049,6 +2395,14 @@ CIEMainWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
     case WM_CREATE:
     {
+        // Create top bar static window
+        HWND hwndTopBar = CreateWindow("STATIC", "", WS_CHILD | WS_VISIBLE | SS_SUNKEN | WS_CLIPSIBLINGS,
+                                       0, 0, 100, 40, HWindow, (HMENU)1002, DLLInstance, NULL);
+                                       
+        // Create the "Export to PDF" button inside the main window (parented to HWindow)
+        HWND hwndButton = CreateWindow("BUTTON", "Export to PDF", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP,
+                                       10, 8, 120, 24, HWindow, (HMENU)1001, DLLInstance, NULL);
+
         if (!m_IEViewer.CreateSite(HWindow))
             return -1;
         ShowWindow(m_IEViewer.HWindow, SW_SHOW);
@@ -2103,10 +2457,29 @@ CIEMainWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
     case WM_SIZE:
     {
+        int width = LOWORD(lParam);
+        int height = HIWORD(lParam);
+
+        HWND hwndTopBar = GetDlgItem(HWindow, 1002);
+        if (hwndTopBar != NULL)
+        {
+            SetWindowPos(hwndTopBar, HWND_TOP, 0, 0, width, 40, SWP_NOZORDER);
+        }
+
         if (m_IEViewer.HWindow != NULL)
-            SetWindowPos(m_IEViewer.HWindow, HWND_TOP,
-                         0, 0, LOWORD(lParam), HIWORD(lParam),
-                         0);
+        {
+            SetWindowPos(m_IEViewer.HWindow, HWND_TOP, 0, 40, width, height - 40, SWP_NOZORDER);
+        }
+        break;
+    }
+
+    case WM_COMMAND:
+    {
+        if (LOWORD(wParam) == 1001) // IDC_EXPORT_PDF
+        {
+            m_IEViewer.ExportToPdf();
+            return 0;
+        }
         break;
     }
     }

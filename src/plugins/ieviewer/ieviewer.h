@@ -1,4 +1,4 @@
-﻿// SPDX-FileCopyrightText: 2023 Open Salamander Authors
+// SPDX-FileCopyrightText: 2023 Open Salamander Authors
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -383,22 +383,40 @@ class CIEWindow
 {
 public:
     HWND HWindow;
+    ICoreWebView2Controller* m_pController;
+    ICoreWebView2* m_pWebView;
+    bool m_isInitialized;
 
 protected:
-    CSite m_Site;
+    HWND m_hParentWnd;
+    std::string m_pendingHtml;
+    std::wstring m_pendingUrl;
 
 public:
-    CIEWindow() { HWindow = NULL; }
+    CIEWindow()
+    {
+        HWindow = NULL;
+        m_pController = NULL;
+        m_pWebView = NULL;
+        m_isInitialized = false;
+        m_hParentWnd = NULL;
+    }
 
-    // create and connect to IE
+    // create and connect to WebView2
     BOOL CreateSite(HWND hParent);
-    // perform IE cleanup !! must be called before destroying the window
+    // perform WebView2 cleanup
     void CloseSite();
-    // jump to the requested URL
+    // jump to the requested URL or load from stream
     void Navigate(LPCTSTR lpszURL, IStream* contentStream);
-    // unfortunately we have to call this from the message loop
+    // process accelerators (e.g. shortcuts)
     HRESULT TranslateAccelerator(LPMSG lpmsg);
     BOOL CanClose();
+
+    void InitWebView2();
+    void OnControllerCreated(ICoreWebView2Controller* controller);
+    void NavigateToString(const std::string& html);
+    void NavigateToUrl(const std::wstring& url);
+    void ExportToPdf();
 };
 
 //
