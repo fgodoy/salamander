@@ -2144,6 +2144,7 @@ void CIEWindow::OnControllerCreated(ICoreWebView2Controller* controller)
         GetClientRect(HWindow, &rect);
         m_pController->put_Bounds(rect);
         m_pController->put_IsVisible(TRUE);
+        m_pController->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
 
         m_isInitialized = true;
 
@@ -2498,6 +2499,16 @@ CIEMainWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
         break;
     }
 
+    case WM_KEYDOWN:
+    {
+        if (wParam == VK_ESCAPE)
+        {
+            PostMessage(HWindow, WM_CLOSE, 0, 0);
+            return 0;
+        }
+        break;
+    }
+
     case WM_DESTROY:
     {
         TRACE_I("CIEMainWindow::WindowProc WM_DESTROY");
@@ -2515,6 +2526,11 @@ CIEMainWindow::WindowProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
     case WM_SETFOCUS:
     {
+        if (m_IEViewer.m_pController)
+        {
+            m_IEViewer.m_pController->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+            return 0;
+        }
         HWND hWnd = m_IEViewer.HWindow;
         HWND hIterator = hWnd;
         do
